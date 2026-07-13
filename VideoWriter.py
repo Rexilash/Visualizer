@@ -16,30 +16,35 @@ class VisualizerApp:
         self.window.geometry("500x300")
         self.window.resizable(False, False)
         
-        self.selectedWavpath = ""
+        self.selectedWavPath = ""
         
         titleLbl = tk.Label(window, text = "Visualizer")
         titleLbl.pack(pady = 15)
 
         self.fileStatusLbl = tk.Label(window, text = "No Audio File Selected")
-        browseBtn = tk.Button(window, text = "Select Audio File")
+        browseBtn = tk.Button(window, text = "Select Audio/Video File", command = self.browseFile)
         browseBtn.pack(pady = 5)
         self.fileStatusLbl.pack(pady = 5)
 
         self.progressBar = ttk.Progressbar(window, orient = "horizontal", length = 100, mode = "determinate")
         self.progressBar.pack(pady = 15)
 
-        self.generateBtn = tk.Button(window, text = "Generate")
+        self.generateBtn = tk.Button(window, text = "Generate", command = self.processVideo)
         self.generateBtn.pack(pady = 10)
 
     def browseFile(self):
+        mediaFilters = [
+            ("All Supported Media", "*.mp3 *.wav *.m4a *.flac *.aac *.mp4 *.mkv *.mov"),
+            ("Audio Tracks", "*.mp3 *.wav *.m4a *.flac *.aac"),
+            ("Video Files", "*.mp4 *.mkv *.mov")
+        ]
         filePath = filedialog.askopenfilename(title = "Select Audio File", filetypes = [()])
         if filePath:
-            self.selectedWavpath = filePath
+            self.selectedWavPath = filePath
             filename = os.path.basename(filePath)
             self.fileStatusLbl.config(text = f"Loaded: {filename}")
             self.generateBtn.config(state = "normal")
-    
+
     def processVideo(self):
         self.generateBtn.config(state = "disabled")
         self.window.update()
@@ -59,7 +64,7 @@ class VisualizerApp:
             "borderColor2": "borderColor2",
         }
 
-        audio = AudioAnalyzer(self.selectedWavpath, targetFPS, numBars)
+        audio = AudioAnalyzer(self.selectedWavPath, targetFPS, numBars)
         renderer = FrameRenderer(settings)
 
         width, height = settings["resolution"]
@@ -72,6 +77,14 @@ class VisualizerApp:
         self.progressBar["maximum"] = audio.totalFrames
 
         try:
+            if not self.selectedWavPath.lower().endswith(((".wav", ".wave"))):
+                self.fileStatusLbl.config(text = "Unpacking audio streams...")
+                self.window.update()
+
+                convertCmd = ["ffmpeg", "-y", "-i", self.selectedWavPath, tempConvertedWav]
+                subprocess.run(convertCmd, check = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+                analysisAudioPath = tempSilentVideo
+
             for frameIdx in range(audio.totalFrames):
                 barData = audio.getFrameData(frameIdx)
                 completedFrame = renderer.renderFrame(barData)
@@ -83,7 +96,7 @@ class VisualizerApp:
             
             videoWriter.release()
 
-            ffmpegCmd = ["ffmpeg", "-y", "-i", tempSilentVideo, "-i", self.selectedWavpath, "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", outputMp4Path]
+            ffmpegCmd = ["ffmpeg", "-y", "-i", tempSilentVideo, "-i", self.selectedWavPath, "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", outputMp4Path]
             subprocess.run(ffmpegCmd, check = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
 
             messagebox.showinfo("Success", f"Video rendered and mixed successfully!\nSaved as: {outputMp4Path}")
