@@ -64,17 +64,18 @@ class VisualizerApp:
             "borderColor2": "borderColor2",
         }
 
-        audio = AudioAnalyzer(self.selectedWavPath, targetFPS, numBars)
-        renderer = FrameRenderer(settings)
+
 
         width, height = settings["resolution"]
         tempSilentVideo = "tempSilentRender.mp4"
+        tempConvertedWav = "tempBackgroundDecode.wav"
         outputMp4Path = "completedRender.mp4"
 
-        fourcc = cv2.VideoWriter_fourcc(*"mp4")
-        videoWriter = cv2.VideoWriter(tempSilentVideo, fourcc, 60.0, (width, height))
+        analysisAudioPath = self.selectedWavPath
 
-        self.progressBar["maximum"] = audio.totalFrames
+        
+
+        
 
         try:
             if not self.selectedWavPath.lower().endswith(((".wav", ".wave"))):
@@ -85,10 +86,21 @@ class VisualizerApp:
                 subprocess.run(convertCmd, check = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
                 analysisAudioPath = tempSilentVideo
 
+            self.fileStatusLbl.config(text = "rendering frames...")
+            self.window.update()
+
+            audio = AudioAnalyzer(self.selectedWavPath, targetFPS, numBars)
+            renderer = FrameRenderer(settings)
+
+            fourcc = cv2.VideoWriter_fourcc(*"mp4")
+            videoWriter = cv2.VideoWriter(tempSilentVideo, fourcc, 60.0, (width, height))
+
+            self.progressBar["maximum"] = audio.totalFrames
+
             for frameIdx in range(audio.totalFrames):
                 barData = audio.getFrameData(frameIdx)
                 completedFrame = renderer.renderFrame(barData)
-                videoWriter.writer(completedFrame)
+                videoWriter.write(completedFrame)
 
                 if frameIdx % 15 == 0:
                     self.progressBar["value"] = frameIdx
