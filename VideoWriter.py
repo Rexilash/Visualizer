@@ -10,16 +10,35 @@ from tkinter import filedialog, messagebox
 from tkinter import ttk
 
 class VisualizerApp:
-    def __init__(self):
+    def __init__(self, window):
         self.window = window
         self.window.title("Visualizer")
         self.window.geometry("500x300")
         self.window.resizable(False, False)
         
         self.selectedWavPath = ""
+
+        self.rgbPrimary = (255, 0, 150)
+        self.rgbSecondary = (0, 255, 255)
+        self.rgbTertiary = (0, 100, 255)
+        self.rgbBg = (0, 0, 0)
         
         titleLbl = tk.Label(window, text = "Visualizer")
         titleLbl.pack(pady = 15)
+
+        configFrame = tk.LabelFrame(window, text = "Render Settings")
+        configFrame.pack()
+
+        tk.Label(configFrame,  text = "Resolution (16:9)")
+        self.resOptions = {
+            "HD (1280x720)": (1280, 720),
+            "FHD (1920x1080)": (1920, 1080),
+            "QHD (2560x1440)": (2560, 1440),
+            "4K Ultra HD (3840x2160)": (3840, 2160)
+        }
+        self.resCombo = ttk.Combobox(configFrame, value = List(self.resOptions.keys()), state = "readonly")
+        self.resCombo.set("FHD (1920x1080)")
+        self.resCombo.grid()
 
         self.fileStatusLbl = tk.Label(window, text = "No Audio File Selected")
         browseBtn = tk.Button(window, text = "Select Audio/Video File", command = self.browseFile)
@@ -38,7 +57,7 @@ class VisualizerApp:
             ("Audio Tracks", "*.mp3 *.wav *.m4a *.flac *.aac"),
             ("Video Files", "*.mp4 *.mkv *.mov")
         ]
-        filePath = filedialog.askopenfilename(title = "Select Audio File", filetypes = [()])
+        filePath = filedialog.askopenfilename(title = "Select Audio File", filetypes = mediaFilters)
         if filePath:
             self.selectedWavPath = filePath
             filename = os.path.basename(filePath)
@@ -84,15 +103,15 @@ class VisualizerApp:
 
                 convertCmd = ["ffmpeg", "-y", "-i", self.selectedWavPath, tempConvertedWav]
                 subprocess.run(convertCmd, check = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-                analysisAudioPath = tempSilentVideo
+                analysisAudioPath = tempConvertedWav
 
             self.fileStatusLbl.config(text = "rendering frames...")
             self.window.update()
 
-            audio = AudioAnalyzer(self.selectedWavPath, targetFPS, numBars)
+            audio = AudioAnalyzer(self.selectedWavPath, targetFPS = 60, numBars = 64)
             renderer = FrameRenderer(settings)
 
-            fourcc = cv2.VideoWriter_fourcc(*"mp4")
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             videoWriter = cv2.VideoWriter(tempSilentVideo, fourcc, 60.0, (width, height))
 
             self.progressBar["maximum"] = audio.totalFrames
@@ -118,9 +137,12 @@ class VisualizerApp:
         except Exception as e:
             messagebox.showerror("Error", f"Something went wrong: {str(e)}")
         finally:
-            videoWriter.release()
-            if os.path.exists(tempSilentVideo) and os.pathexists(outputMp4Path):
+            if "videoWriter" in locals():
+                videoWriter.release()
+            if os.path.exists(tempSilentVideo):
                 os.remove(tempSilentVideo)
+            if os.path.exists(tempConvertedWav):
+                os.remove(tempConvertedWav)
             self.progressBar["value"] = 0
             self.generateBtn.config(state = "normal")
 
