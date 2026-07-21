@@ -40,6 +40,27 @@ class VisualizerApp:
         self.resCombo.set("FHD (1920x1080)")
         self.resCombo.grid()
 
+        tk.Label(configFrame, text = "Number of Audio Bars:").grid()
+        self.barsSpinner = ttk.Spinbox(configFrame)
+        self.barsSpinner.set()
+        self.barsSpinner.grid()
+
+        tk.Label(configFrame, text = "Theme Color Scheming:").grid()
+        colorBtnPanel = tk.Frame(configFrame)
+        colorBtnPanel.grid()
+
+        self.btnPrimary = tk.Button(colorBtnPanel, text = "Primary", command = lambda: self.pickColor("primary"))
+        self.btnPrimary.pack()
+
+        self.btnSecondary = tk.Button(colorBtnPanel, text = "Secondary", command = lambda: self.pickColor("secondary"))
+        self.btnSecondary.pack()
+
+        self.btnTertiary = tk.Button(colorBtnPanel, text = "Tertiary", command = lambda: self.pickColor("tertiary"))
+        self.btnTertiary.pack()
+
+        self.btnBg = tk.Button(colorBtnPanel, text = "Background", command = lambda: self.pickColor("background"))
+        self.btnBg.pack()
+
         self.fileStatusLbl = tk.Label(window, text = "No Audio File Selected")
         browseBtn = tk.Button(window, text = "Select Audio/Video File", command = self.browseFile)
         browseBtn.pack(pady = 5)
@@ -50,6 +71,28 @@ class VisualizerApp:
 
         self.generateBtn = tk.Button(window, text = "Generate", command = self.processVideo)
         self.generateBtn.pack(pady = 10)
+
+    def pickColor(self, target):
+        colorInfo = colorchooser.askcolor(title = f"Choose {target.capitalize()} Color")
+        if colorInfo[1]:
+            hexColor = colorInfo[1]
+            rgbTuple = colorInfo[0]
+
+            brightness = (rgbTuple[0] * 299 +rgbTuple[1] * 587 + rgbTuple[2] * 114)
+            textColor = "black" if brightness > 125 else "white"
+
+            if target == "primary":
+                self.rgbPrimary = rgbTuple
+                self.btnPrimary.config(bg = hexColor, fg = textColor)
+            elif target == "secondary":
+                self.rgbSecondary = rgbTuple
+                self.btnSecondary.config(bg=hexColor, fg=textColor)
+            elif target == "tertiary":
+                self.rgbTertiary = rgbTuple
+                self.btnTertiary.config(bg=hexColor, fg=textColor)
+            elif target == "bg":
+                self.rgbBg = rgbTuple
+                self.btnBg.config(bg=hexColor, fg=textColor)
 
     def browseFile(self):
         mediaFilters = [
