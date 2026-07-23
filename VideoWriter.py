@@ -86,13 +86,13 @@ class VisualizerApp:
                 self.btnPrimary.config(bg = hexColor, fg = textColor)
             elif target == "secondary":
                 self.rgbSecondary = rgbTuple
-                self.btnSecondary.config(bg=hexColor, fg=textColor)
+                self.btnSecondary.config(bg = hexColor, fg = textColor)
             elif target == "tertiary":
                 self.rgbTertiary = rgbTuple
-                self.btnTertiary.config(bg=hexColor, fg=textColor)
+                self.btnTertiary.config(bg = hexColor, fg = textColor)
             elif target == "bg":
                 self.rgbBg = rgbTuple
-                self.btnBg.config(bg=hexColor, fg=textColor)
+                self.btnBg.config(bg = hexColor, fg = textColor)
 
     def browseFile(self):
         mediaFilters = [
@@ -111,22 +111,31 @@ class VisualizerApp:
         self.generateBtn.config(state = "disabled")
         self.window.update()
 
+        chosenResKey = sef.resCombo.get()
+        resolutionTuple = self.resOptions[chosenResKey]
+        configuredBars = int(self.barsSpinner.get())
+
+        bgrPrimary = (int(self.rgbPrimary[2]), int(self.rgbPrimary[1]), int(self.rgbPrimary[0]))
+        bgrSecondary = (int(self.rgbSecondary[2]), int(self.rgbPrimary[1]), int(self.rgbPrimary[0]))
+        bgrTertiary = (int(self.rgbTertiary[2]), int(self.rgbTertiary[1]), int(self.rgbTertiary[0]))
+        bgrBg = (int(self.rgbBg[2]), int(self.rgbBg[1]), int(self.rgbBg[0]))
+
         settings = {
-            "resolution": "res",
-            "bgColor": "bg",
-            "title": "title",
-            "titleColor": "titleColor",
-            "artist": "artist",
-            "artistColor": "artistColor",
-            "primaryColor": "primaryColor",
-            "secondaryColor": "secondaryColor",
-            "tertiaryColor": "tertiaryColor",
-            "borderWidth": "borderWidth",
-            "borderColor1": "borderColor1",
-            "borderColor2": "borderColor2",
+            "resolution": resolutionTuple,
+            "bgColor": bgrBg,
+            "title": "DYNAMIC THEME RENDER",
+            "titleColor": (255, 255, 255),
+            "artist": "Engine v2 Configured",
+            "artistColor": (180, 180, 180),
+            "primaryColor": bgrPrimary,
+            "secondaryColor": bgrSecondary,
+            "tertiaryColor": bgrTertiary,
+            "borderWidth": 10,
+            "borderColor1": (30, 30, 30),
+            "borderColor2": bgrPrimary,
+            "barGap": 4,
+            "maxHeightPct": 0.5
         }
-
-
 
         width, height = settings["resolution"]
         tempSilentVideo = "tempSilentRender.mp4"
@@ -134,10 +143,6 @@ class VisualizerApp:
         outputMp4Path = "completedRender.mp4"
 
         analysisAudioPath = self.selectedWavPath
-
-        
-
-        
 
         try:
             if not self.selectedWavPath.lower().endswith(((".wav", ".wave"))):
@@ -151,7 +156,7 @@ class VisualizerApp:
             self.fileStatusLbl.config(text = "rendering frames...")
             self.window.update()
 
-            audio = AudioAnalyzer(self.selectedWavPath, targetFPS = 60, numBars = 64)
+            audio = AudioAnalyzer(self.selectedWavPath, targetFPS = 60, numBars = configuredBars)
             renderer = FrameRenderer(settings)
 
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
@@ -173,6 +178,8 @@ class VisualizerApp:
             ffmpegCmd = ["ffmpeg", "-y", "-i", tempSilentVideo, "-i", self.selectedWavPath, "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", outputMp4Path]
             subprocess.run(ffmpegCmd, check = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
 
+            filename = os.path.basename(self.selectedWavPath)
+            self.fileStatusLbl.config(textt =  f"Loaded: {filename}", fg =  "green")
             messagebox.showinfo("Success", f"Video rendered and mixed successfully!\nSaved as: {outputMp4Path}")
         
         except FileNotFoundError:
