@@ -10,7 +10,7 @@ from tkinter import filedialog, messagebox
 from tkinter import ttk
 
 class AudioAnalyzer:
-    def __init__(self, audioPath, targetFPS = 60, numBars, smoothingFactor):
+    def __init__(self, audioPath, targetFPS = 60, numBars = 64, smoothingFactor = 0.15):
         self.sampleRate, data  = wavfile.read(audioPath)
         if len(data.shape) > 1:
             self.audioData = np.mean(data, axis = 1)
@@ -26,9 +26,9 @@ class AudioAnalyzer:
         self.numBars = numBars
         self.smoothingFactor = smoothingFactor
         self.samplesPerFrame = int(self.sampleRate /  self.fps)
-        self.totalFrames = int(len(self.audioData / self.samplesPerFrame))
+        self.totalFrames = int(len(self.audioData) / (self.samplesPerFrame))
         self.previousFramebars = np.zeros(self.numBars, dtype = np.float32)
-        self.barEdges =  np.logspace(np.log10(1), np.log10(self.samplesPerFrame) // 2, self.numBars + 1). astype(int)
+        self.barEdges = np.logspace(np.log10(1), np.log10(self.samplesPerFrame // 2), self.numBars + 1).astype(int)
 
     def getFrameData(self,  frameIndex):
         if frameIndex >= self.totalFrames:
@@ -37,9 +37,15 @@ class AudioAnalyzer:
         endSample = startSample + self.samplesPerFrame
         audioChunk = self.audioData[startSample:endSample]
         if len(audioChunk) < self.samplesPerFrame:
-            audioChunk = np.pad(audioChunk, (0, self.samplesPerFrame - len(self.audioChunk)))
+            audioChunk = np.pad(audioChunk, (0, self.samplesPerFrame - len(audioChunk)))
         fftData = np.abs(np.fft.rfft(audioChunk))
         currentBars = np.zeros(self.numBars, dtype = np.float32)
+        for i in range(self.numBars):
+            startIdx = self.barEdges[i]
+            endIdx = max(startIdx + 1, self.barEdges[i + 1])
+            currentBars[i] = np.mean(fftData[startIdx:endIdx])
+        currentBars =  currentBars * 2.5
+        currentBars = np.clip(currentBars, 0.0, 1.0)
         for i in range(self.numBars):
             if currentBars[i] < self.previousFramebars[i]:
                 currentBars[i] = (currentBars[i] * self.smoothingFactor) + (self.previousFramebars[i] * (1.0 - self.smoothingFactor))
