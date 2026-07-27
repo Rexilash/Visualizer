@@ -1,15 +1,12 @@
 import os
 import cv2
-import numpy as np
 import subprocess
-from scipy.io import wavfile
-
-# Import Python's built-in UI libraries
 import tkinter as tk
-from tkinter import filedialog, messagebox
-from tkinter import ttk
+from tkinter import filedialog, messagebox, ttk, colorchooser
+from AudioAnalyzer import AudioAnalyzer
+from FrameRenderer import FrameRenderer
 
-class VisualizerApp:
+class VideoWriter:
     def __init__(self, window):
         self.window = window
         self.window.title("Visualizer")
@@ -18,6 +15,7 @@ class VisualizerApp:
         
         self.selectedWavPath = ""
 
+        # Default RGB colors
         self.rgbPrimary = (255, 0, 150)
         self.rgbSecondary = (0, 255, 255)
         self.rgbTertiary = (0, 100, 255)
@@ -26,9 +24,11 @@ class VisualizerApp:
         titleLbl = tk.Label(window, text = "Visualizer")
         titleLbl.pack(pady = 15)
 
+        # Settings Panel
         configFrame = tk.LabelFrame(window, text = "Render Settings")
         configFrame.pack()
 
+        # Resolutions
         tk.Label(configFrame,  text = "Resolution (16:9)")
         self.resOptions = {
             "HD (1280x720)": (1280, 720),
@@ -36,15 +36,17 @@ class VisualizerApp:
             "QHD (2560x1440)": (2560, 1440),
             "4K Ultra HD (3840x2160)": (3840, 2160)
         }
-        self.resCombo = ttk.Combobox(configFrame, value = List(self.resOptions.keys()), state = "readonly")
+        self.resCombo = ttk.Combobox(configFrame, value = list(self.resOptions.keys()), state = "readonly")
         self.resCombo.set("FHD (1920x1080)")
         self.resCombo.grid()
 
+        # Bar count selector
         tk.Label(configFrame, text = "Number of Audio Bars:").grid()
         self.barsSpinner = ttk.Spinbox(configFrame)
-        self.barsSpinner.set()
+        self.barsSpinner.set(64)
         self.barsSpinner.grid()
 
+        # Color customization
         tk.Label(configFrame, text = "Theme Color Scheming:").grid()
         colorBtnPanel = tk.Frame(configFrame)
         colorBtnPanel.grid()
@@ -61,14 +63,18 @@ class VisualizerApp:
         self.btnBg = tk.Button(colorBtnPanel, text = "Background", command = lambda: self.pickColor("background"))
         self.btnBg.pack()
 
-        self.fileStatusLbl = tk.Label(window, text = "No Audio File Selected")
+        # File chooser
         browseBtn = tk.Button(window, text = "Select Audio/Video File", command = self.browseFile)
         browseBtn.pack(pady = 5)
+
+        self.fileStatusLbl = tk.Label(window, text = "No Audio File Selected")
         self.fileStatusLbl.pack(pady = 5)
 
+        # Progress bar
         self.progressBar = ttk.Progressbar(window, orient = "horizontal", length = 100, mode = "determinate")
         self.progressBar.pack(pady = 15)
 
+        # Render button
         self.generateBtn = tk.Button(window, text = "Generate", command = self.processVideo)
         self.generateBtn.pack(pady = 10)
 
@@ -78,7 +84,7 @@ class VisualizerApp:
             hexColor = colorInfo[1]
             rgbTuple = colorInfo[0]
 
-            brightness = (rgbTuple[0] * 299 +rgbTuple[1] * 587 + rgbTuple[2] * 114)
+            brightness = (rgbTuple[0] * 299 +rgbTuple[1] * 587 + rgbTuple[2] * 114) / 1000
             textColor = "black" if brightness > 125 else "white"
 
             if target == "primary":
@@ -90,7 +96,7 @@ class VisualizerApp:
             elif target == "tertiary":
                 self.rgbTertiary = rgbTuple
                 self.btnTertiary.config(bg = hexColor, fg = textColor)
-            elif target == "bg":
+            elif target == "background":
                 self.rgbBg = rgbTuple
                 self.btnBg.config(bg = hexColor, fg = textColor)
 
@@ -111,12 +117,13 @@ class VisualizerApp:
         self.generateBtn.config(state = "disabled")
         self.window.update()
 
-        chosenResKey = sef.resCombo.get()
+        chosenResKey = self.resCombo.get()
         resolutionTuple = self.resOptions[chosenResKey]
         configuredBars = int(self.barsSpinner.get())
 
+        # Convert RGB to OpenCV BGR
         bgrPrimary = (int(self.rgbPrimary[2]), int(self.rgbPrimary[1]), int(self.rgbPrimary[0]))
-        bgrSecondary = (int(self.rgbSecondary[2]), int(self.rgbPrimary[1]), int(self.rgbPrimary[0]))
+        bgrSecondary = (int(self.rgbSecondary[2]), int(self.rgbSecondary[1]), int(self.rgbSecondary[0]))
         bgrTertiary = (int(self.rgbTertiary[2]), int(self.rgbTertiary[1]), int(self.rgbTertiary[0]))
         bgrBg = (int(self.rgbBg[2]), int(self.rgbBg[1]), int(self.rgbBg[0]))
 
@@ -143,9 +150,10 @@ class VisualizerApp:
         outputMp4Path = "completedRender.mp4"
 
         analysisAudioPath = self.selectedWavPath
+        videoWriter = None
 
         try:
-            if not self.selectedWavPath.lower().endswith(((".wav", ".wave"))):
+            if not self.selectedWavPath.lower().endswith((".wav", ".wave")):
                 self.fileStatusLbl.config(text = "Unpacking audio streams...")
                 self.window.update()
 
@@ -156,11 +164,11 @@ class VisualizerApp:
             self.fileStatusLbl.config(text = "rendering frames...")
             self.window.update()
 
-            audio = AudioAnalyzer(self.selectedWavPath, targetFPS = 60, numBars = configuredBars)
+            audio = AudioAnalyzer(analysisAudioPath, targetFPS = 60, numBars = configuredBars)
             renderer = FrameRenderer(settings)
 
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            videoWriter = cv2.VideoWriter(tempSilentVideo, fourcc, 60.0, (width, height))
+            videoWriter = cv2.VideoWriter(tempSilentVideo, fourcc, float(audio.fps), (width, height))
 
             self.progressBar["maximum"] = audio.totalFrames
 
@@ -174,12 +182,13 @@ class VisualizerApp:
                     self.window.update()
             
             videoWriter.release()
+            videoWriter = None
 
-            ffmpegCmd = ["ffmpeg", "-y", "-i", tempSilentVideo, "-i", self.selectedWavPath, "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", outputMp4Path]
+            ffmpegCmd = ["ffmpeg", "-y", "-i", tempSilentVideo, "-i", analysisAudioPath, "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", outputMp4Path]
             subprocess.run(ffmpegCmd, check = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
 
             filename = os.path.basename(self.selectedWavPath)
-            self.fileStatusLbl.config(textt =  f"Loaded: {filename}", fg =  "green")
+            self.fileStatusLbl.config(text =  f"Loaded: {filename}", fg =  "green")
             messagebox.showinfo("Success", f"Video rendered and mixed successfully!\nSaved as: {outputMp4Path}")
         
         except FileNotFoundError:
@@ -187,7 +196,7 @@ class VisualizerApp:
         except Exception as e:
             messagebox.showerror("Error", f"Something went wrong: {str(e)}")
         finally:
-            if "videoWriter" in locals():
+            if videoWriter is not None and videoWriter.isOpened():
                 videoWriter.release()
             if os.path.exists(tempSilentVideo):
                 os.remove(tempSilentVideo)
@@ -195,8 +204,3 @@ class VisualizerApp:
                 os.remove(tempConvertedWav)
             self.progressBar["value"] = 0
             self.generateBtn.config(state = "normal")
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = VisualizerApp(root)
-    root.mainloop()
