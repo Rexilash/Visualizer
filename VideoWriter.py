@@ -10,7 +10,7 @@ class VideoWriter:
     def __init__(self, window):
         self.window = window
         self.window.title("Visualizer")
-        self.window.geometry("500x300")
+        self.window.geometry("800x800")
         self.window.resizable(False, False)
         
         self.selectedWavPath = ""
@@ -20,11 +20,21 @@ class VideoWriter:
         self.rgbSecondary = (0, 255, 255)
         self.rgbTertiary = (0, 100, 255)
         self.rgbBg = (0, 0, 0)
-        
-        titleLbl = tk.Label(window, text = "Visualizer")
-        titleLbl.pack(pady = 15)
 
+        mainContainer = tk.Frame(window)
+        mainContainer.pack(fill = "both", expand = True)
+
+        leftPanel = tk.Frame(mainContainer)
+        leftPanel.pack(side = "left", fill = "y")
+
+        rightPanel = tk.LabelFrame(mainContainer, text = "Live Preview")
+        rightPanel.pack(side = "right", fill = "both", expand = True)
+
+        # LEFT PANEL
         # Settings Panel
+        titleLbl = tk.Label(leftPanel, text = "Config")
+        titleLbl.pack()
+
         configFrame = tk.LabelFrame(window, text = "Render Settings")
         configFrame.pack()
 
@@ -39,12 +49,14 @@ class VideoWriter:
         self.resCombo = ttk.Combobox(configFrame, value = list(self.resOptions.keys()), state = "readonly")
         self.resCombo.set("FHD (1920x1080)")
         self.resCombo.grid()
+        self.resCombo.bind("<<ComboboxSelected>>", lambda e: self.updatePreview())
 
         # Bar count selector
         tk.Label(configFrame, text = "Number of Audio Bars:").grid()
-        self.barsSpinner = ttk.Spinbox(configFrame)
+        self.barsSpinner = ttk.Spinbox(configFrame, command = self.updatePreview)
         self.barsSpinner.set(64)
         self.barsSpinner.grid()
+        self.barsSpinner.bind("<KeyRelease>", lambda e: self.updatePreview())
 
         # Color customization
         tk.Label(configFrame, text = "Theme Color Scheming:").grid()
