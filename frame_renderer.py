@@ -1,13 +1,7 @@
-import os
 import cv2
 import numpy as np
-import subprocess
 from scipy.io import wavfile
 
-# Import Python's built-in UI libraries
-import tkinter as tk
-from tkinter import filedialog, messagebox
-from tkinter import ttk
 
 class  FrameRenderer:
     def __init__(self, settings):

@@ -1,9 +1,9 @@
 import tkinter as tk
-from VideoWriter import VideoWriter
+from gui import VisualizerApp
 
 def main():
     root = tk.Tk()
-    app = VideoWriter(root)
+    app = VisualizerApp(root)
     root.mainloop()
 
 if __name__ == "__main__":
