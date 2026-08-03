@@ -1,5 +1,5 @@
 import tkinter as tk
-from gui import VisualizerApp
+from backend.gui import VisualizerApp
 
 def main():
     root = tk.Tk()

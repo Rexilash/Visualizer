@@ -6,8 +6,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk, colorchooser
 from PIL import Image, ImageTk             # Added missing PIL import
 
-from audio_analyzer import AudioAnalyzer
-from frame_renderer import FrameRenderer
+from backend.audio_analyzer import AudioAnalyzer
+from backend.frame_renderer import FrameRenderer
 
 
 class VideoWriter:

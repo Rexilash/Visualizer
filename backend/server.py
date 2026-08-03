@@ -1,8 +1,8 @@
 # server.py
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.responses import Response
-from render_config import RenderConfig
-from preview_panel import FrameRenderer
+from backend.render_config import RenderConfig
+from backend.preview_panel import FrameRenderer
 import cv2
 import numpy as np
 

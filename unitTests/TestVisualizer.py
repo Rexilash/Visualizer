@@ -3,8 +3,8 @@ import numpy as np
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from frame_renderer import FrameRenderer
-from audio_analyzer import AudioAnalyzer
+from backend.frame_renderer import FrameRenderer
+from backend.audio_analyzer import AudioAnalyzer
 
 class Test(unittest.TestCase):
     def setUp(self):

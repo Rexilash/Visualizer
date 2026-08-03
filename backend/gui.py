@@ -3,9 +3,9 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk, colorchooser
 
-from render_config import RenderConfig
-from preview_panel import PreviewPanel
-from video_engine import VideoEngine
+from backend.render_config import RenderConfig
+from backend.preview_panel import PreviewPanel
+from backend.video_engine import VideoEngine
 
 
 class VisualizerApp:

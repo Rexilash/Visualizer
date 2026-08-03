@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import tkinter as tk
 from PIL import Image, ImageTk
-from frame_renderer import FrameRenderer
+from backend.frame_renderer import FrameRenderer
 
 
 class PreviewPanel:
