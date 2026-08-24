@@ -1,8 +1,8 @@
 import os
 import cv2
 import subprocess
-from backend.audio_analyzer import AudioAnalyzer
-from backend.frame_renderer import FrameRenderer
+from .audio_analyzer import AudioAnalyzer
+from .frame_renderer import FrameRenderer
 
 
 class VideoEngine:

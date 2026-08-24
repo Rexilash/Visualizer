@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import '../widgets/config_panel.dart';
-import '../test/preview.dart';
+import 'widgets/preview.dart';
+import 'api-service.dart';
+import 'dart:async';
 
 class VisualizerStudioScreen extends StatefulWidget {
   const VisualizerStudioScreen({super.key});
@@ -17,6 +19,8 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
   String? selectedFilePath;
   bool isRendering = false;
   double renderProgress = 0.0;
+  String previewUrl = ApiService.getPreviewUrl();
+  Timer? _statusTimer;
 
   // Colors
   Color primaryColor = const Color(0xFFFF0096);
@@ -30,6 +34,27 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
     'QHD (2560x1440)',
     '4K Ultra HD (3840x2160)'
   ];
+
+  @override
+  void dispose() {
+    _statusTimer?.cancel();
+    super.dispose();
+  }
+
+  void _syncConfigToBackend() {
+    ApiService.updateConfig(
+      resKey: selectedResolution,
+      numBars: barCount.toInt(),
+      rgbPrimary: [primaryColor.red, primaryColor.green, primaryColor.blue],
+      rgbSecondary: [secondaryColor.red, secondaryColor.green, secondaryColor.blue],
+      rgbTertiary: [tertiaryColor.red, tertiaryColor.green, tertiaryColor.blue],
+      rgbBg: [bgColor.red, bgColor.green, bgColor.blue],
+    ).then((_) {
+      setState(() {
+        previewUrl = ApiService.getPreviewUrl();
+      });
+    });
+  }
 
   void _handleColorChange(String label, Color color) {
     setState(() {
@@ -48,17 +73,46 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
           break;
       }
     });
+    _syncConfigToBackend();
   }
 
-  void _toggleRender() {
-    setState(() {
-      if (isRendering) {
+  Future<void> _toggleRender() async {
+    if (isRendering) {
+      _statusTimer?.cancel();
+      setState(() {
         isRendering = false;
         renderProgress = 0.0;
-      } else {
+      });
+      return;
+    }
+
+    if (selectedFilePath == null) return;
+
+    final started = await ApiService.startRender(selectedFilePath!);
+    if (started) {
+      setState(() {
         isRendering = true;
-      }
-    });
+        renderProgress = 0.0;
+      });
+
+      _statusTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) async {
+        final status = await ApiService.getRenderStatus();
+        if (status != null) {
+          final int progress = status['progress'] ?? 0;
+          final int total = status['total_frames'] ?? 1;
+          final bool active = status['is_rendering'] ?? false;
+
+          setState(() {
+            renderProgress = total > 0 ? progress / total : 0.0;
+            isRendering = active;
+          });
+
+          if (!active) {
+            timer.cancel();
+          }
+        }
+      });
+    }
   }
 
   @override
@@ -93,7 +147,10 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
             ),
             const SizedBox(width: 16),
             Expanded(
-              child: PreviewPanel(bgColor: bgColor),
+              child: PreviewPanel(
+                bgColor: bgColor,
+                previewUrl: previewUrl,
+              ),
             ),
           ],
         ),

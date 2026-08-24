@@ -8,9 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from render_config import RenderConfig
-from frame_renderer import FrameRenderer
-from video_engine import VideoEngine
+from .render_config import RenderConfig
+from .frame_renderer import FrameRenderer
+from .video_engine import VideoEngine
 
 app = FastAPI(title="Visualizer Engine API")
 

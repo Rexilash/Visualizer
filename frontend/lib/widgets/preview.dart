@@ -1,11 +1,14 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class PreviewPanel extends StatelessWidget {
   final Color bgColor;
+  final String previewUrl;
 
   const PreviewPanel({
     super.key,
     required this.bgColor,
+    required this.previewUrl,
   });
 
   @override
@@ -36,13 +39,19 @@ class PreviewPanel extends StatelessWidget {
                     aspectRatio: 16 / 9,
                     child: Container(
                       color: bgColor,
-                      child: const Center(
-                        child: Text(
-                          'PREVIEW CANVAS\n(Waiting for Python Server stream)',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white54),
-                        ),
-                      ),
+                      child: Image.network(
+                        previewUrl,
+                        key: ValueKey(previewUrl),
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Center(
+                            child: Text(
+                              "Connecting to API Preview Stream...",
+                              style: TextStyle(color: Colors.white54)
+                            )
+                          );
+                        },
+                      )
                     ),
                   ),
                 ),
