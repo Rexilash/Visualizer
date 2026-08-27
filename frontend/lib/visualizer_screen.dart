@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import '../widgets/config_panel.dart';
 import 'widgets/preview.dart';
-import 'api-service.dart';
+import 'api_service.dart';
 import 'dart:async';
 
 class VisualizerStudioScreen extends StatefulWidget {
@@ -137,9 +137,15 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
                 tertiaryColor: tertiaryColor,
                 bgColor: bgColor,
                 onResolutionChanged: (val) {
-                  if (val != null) setState(() => selectedResolution = val);
+                  if (val != null) {
+                    setState(() => selectedResolution = val);
+                    _syncConfigToBackend();
+                  }
                 },
-                onBarCountChanged: (val) => setState(() => barCount = val),
+                onBarCountChanged: (val) {
+                  setState(() => barCount = val);
+                  _syncConfigToBackend();
+                },
                 onColorChanged: _handleColorChange,
                 onFileSelected: (path) => setState(() => selectedFilePath = path),
                 onToggleRender: _toggleRender,

@@ -26,13 +26,12 @@ class PreviewPanel extends StatelessWidget {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            Expanded(
+            AspectRatio(
+              aspectRatio: 16 / 9,
               child: Container(
-                width: double.infinity,
                 decoration: BoxDecoration(
                   color: Colors.black,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white10),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
                   child: AspectRatio(
@@ -54,9 +53,9 @@ class PreviewPanel extends StatelessWidget {
                       )
                     ),
                   ),
-                ),
-              ),
-            ),
+                )
+              )
+            )
           ],
         ),
       ),

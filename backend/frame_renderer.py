@@ -25,14 +25,16 @@ class  FrameRenderer:
         baselineY = self.height - borderWidth
         usableWidth = self.width - (borderWidth * 2)
         usableHeight = self.height - (borderWidth * 2)
-        barWidth = max(1, int((usableWidth - (gap * (count + 1))) / count))
+        total_bar_space = usableWidth - (gap * (count + 1))
         maxBarPixels = int(usableHeight * self.settings["maxHeightPct"])
 
         for i in range(count):
             amplitude = audioFrameData[i]
             barHeight = int(amplitude * maxBarPixels)
-            x1 = borderWidth + (gap * (i + 1)) + (i * barWidth)
-            x2 = x1 + barWidth
+            bar_left = int(i * total_bar_space / count)
+            bar_right = int((i + 1) * total_bar_space / count)
+            x1 = borderWidth + (gap * (i + 1)) + bar_left
+            x2 = borderWidth + (gap * (i + 1)) + bar_right
             y1 = baselineY - barHeight
             cv2.rectangle(mask, (x1, y1), (x2, baselineY), 255, -1)
         
