@@ -4,6 +4,8 @@ import '../widgets/config_panel.dart';
 import 'widgets/preview.dart';
 import 'api_service.dart';
 import 'dart:async';
+import 'package:file_picker/file_picker.dart';
+
 
 class VisualizerStudioScreen extends StatefulWidget {
   const VisualizerStudioScreen({super.key});
@@ -21,6 +23,8 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
   double renderProgress = 0.0;
   String previewUrl = ApiService.getPreviewUrl();
   Timer? _statusTimer;
+  String customFileName = "Visualizer_output";
+  String? selectedOutputPath;
 
   // Colors
   Color primaryColor = const Color(0xFFFF0096);
@@ -76,6 +80,26 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
     _syncConfigToBackend();
   }
 
+  Future<void> _selectSavePath() async {
+    String formattedName = customFileName.trim().isEmpty ? 'visualizer_output' : customFileName.trim();
+    if (!formattedName.toLowerCase().endsWith('.mp4')) {
+      formattedName += '.mp4';
+    }
+
+    String? savePath = await FilePicker.saveFile(
+      dialogTitle: "Select destination for rendered video",
+      fileName: formattedName,
+      allowedExtensions: ["mp4"],
+      type: FileType.custom,
+    );
+
+    if (savePath != null) {
+      setState(() {
+        selectedOutputPath = savePath;
+      });
+    }
+  }
+
   Future<void> _toggleRender() async {
     if (isRendering) {
       _statusTimer?.cancel();
@@ -88,7 +112,29 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
 
     if (selectedFilePath == null) return;
 
-    final started = await ApiService.startRender(selectedFilePath!);
+    // Use pre-selected path or prompt if not selected yet
+    String? finalPath = selectedOutputPath;
+
+    if (finalPath == null) {
+      String formattedName = customFileName.trim().isEmpty ? 'visualizer_output' : customFileName.trim();
+      if (!formattedName.toLowerCase().endsWith('.mp4')) {
+        formattedName += '.mp4';
+      }
+
+      finalPath = await FilePicker.saveFile(
+        dialogTitle: "Save rendered video as",
+        fileName: formattedName,
+        allowedExtensions: ["mp4"],
+        type: FileType.custom,
+      );
+
+      if (finalPath == null) return; // User cancelled prompt
+      setState(() {
+        selectedOutputPath = finalPath;
+      });
+    }
+
+    final started = await ApiService.startRender(selectedFilePath!, finalPath);
     if (started) {
       setState(() {
         isRendering = true;
@@ -149,6 +195,10 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
                 onColorChanged: _handleColorChange,
                 onFileSelected: (path) => setState(() => selectedFilePath = path),
                 onToggleRender: _toggleRender,
+                outputFileName: customFileName,
+                onOutputFileNameChanged: (val) => setState(() => customFileName = val),
+                selectedOutputPath: selectedOutputPath,
+                onSelectOutputPath: _selectSavePath,
               ),
             ),
             const SizedBox(width: 16),

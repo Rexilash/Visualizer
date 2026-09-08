@@ -13,12 +13,16 @@ class ConfigPanel extends StatelessWidget {
   final Color secondaryColor;
   final Color tertiaryColor;
   final Color bgColor;
+  final String outputFileName;
+  final ValueChanged<String> onOutputFileNameChanged;
+  final String? selectedOutputPath;
 
   final ValueChanged<String?> onResolutionChanged;
   final ValueChanged<double> onBarCountChanged;
   final Function(String, Color) onColorChanged;
   final ValueChanged<String?> onFileSelected;
   final VoidCallback onToggleRender;
+  final VoidCallback onSelectOutputPath;
 
   const ConfigPanel({
     super.key,
@@ -37,6 +41,10 @@ class ConfigPanel extends StatelessWidget {
     required this.onColorChanged,
     required this.onFileSelected,
     required this.onToggleRender,
+    required this.outputFileName,
+    required this.onOutputFileNameChanged,
+    required this.selectedOutputPath,
+    required this.onSelectOutputPath
   });
 
   @override
@@ -93,8 +101,8 @@ class ConfigPanel extends StatelessWidget {
                     bgColor: bgColor,
                     onColorChanged: onColorChanged,
                   ),
+                  const Text('Output Video Name', style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 30),
-
                   ElevatedButton.icon(
                     onPressed: () async {
                       FilePickerResult? result = await FilePicker.pickFiles(
@@ -112,7 +120,7 @@ class ConfigPanel extends StatelessWidget {
                       minimumSize: const Size.fromHeight(48),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 15),
                   Text(
                     selectedFilePath != null
                         ? 'Loaded: ${selectedFilePath!.split('/').last}'
@@ -120,6 +128,27 @@ class ConfigPanel extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: selectedFilePath != null ? Colors.greenAccent : Colors.grey,
+                      fontSize: 12,
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: onSelectOutputPath,
+                    icon: const Icon(Icons.drive_file_move_outlined),
+                    label: const Text('Set Output Save Path'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    selectedOutputPath != null
+                        ? 'Save path: $selectedOutputPath'
+                        : 'Destination: Not selected (will prompt on render)',
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selectedOutputPath != null ? Colors.cyanAccent : Colors.grey,
                       fontSize: 12,
                     ),
                   ),

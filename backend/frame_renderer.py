@@ -8,8 +8,21 @@ class  FrameRenderer:
         self.settings = settings
         self.width, self.height = settings["resolution"]
         self.scale= self.height / 1080.0
-        barBackground = np.array([[settings["tertiaryColor"]], [settings["secondaryColor"]], [settings["primaryColor"]]], dtype = np.uint8)
-        self.staticBarBackground = cv2.resize(barBackground, (self.width, self.height), interpolation = cv2.INTER_LINEAR)
+        borderWidth = self.settings["borderWidth"]
+        usableHeight = self.height - (borderWidth * 2)
+        maxBarPixels = int(usableHeight * self.settings["maxHeightPct"])
+        
+        barBackground = np.array([
+            [settings["tertiaryColor"]], 
+            [settings["secondaryColor"]],
+            [settings["primaryColor"]],
+        ], dtype = np.uint8)
+        gradient = cv2.resize(barBackground, (self.width, maxBarPixels), interpolation = cv2.INTER_LINEAR)
+
+        self.staticBarBackground = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+        baselineY = self.height - borderWidth
+        top_y = max(0, baselineY - maxBarPixels)
+        self.staticBarBackground[top_y:baselineY, :] = gradient
 
     def renderFrame(self, audioFrameData):
         frame = np.zeros((self.height, self.width, 3), dtype = np.uint8)

@@ -49,6 +49,7 @@ class ConfigUpdateRequest(BaseModel):
 
 class RenderStartRequest(BaseModel):
     audio_path: str
+    output_path: str
 
 # -------------------------------------------------------------
 # API ENDPOINTS
@@ -128,7 +129,8 @@ def start_render(req: RenderStartRequest):
             audio_path=req.audio_path,
             config=config,
             progress_callback=_progress_callback,
-            status_callback=_status_callback
+            status_callback=_status_callback,
+            output_path=req.output_path
         )
         try:
             engine.render()

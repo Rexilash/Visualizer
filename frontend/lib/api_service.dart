@@ -33,12 +33,12 @@ class ApiService {
     } catch (_) {}
   }
 
-  static Future<bool> startRender(String audioPath) async {
+  static Future<bool> startRender(String audioPath, String outputPath) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/render/start'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'audio_path': audioPath}),
+        body: jsonEncode({'audio_path': audioPath, 'output_path': outputPath}),
       );
       return response.statusCode == 200;
     } catch (_) {

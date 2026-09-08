@@ -40,5 +40,5 @@ class RenderConfig:
             "borderColor1": (30, 30, 30),
             "borderColor2": bgr_primary,
             "barGap": 4,
-            "maxHeightPct": 0.5
+            "maxHeightPct": 0.82
         }

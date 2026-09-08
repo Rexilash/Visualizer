@@ -6,7 +6,7 @@ from .frame_renderer import FrameRenderer
 
 
 class VideoEngine:
-    def __init__(self, audio_path, config, progress_callback=None, status_callback=None):
+    def __init__(self, audio_path, config, progress_callback=None, status_callback=None, output_path=None):
         self.audio_path = audio_path
         self.config = config
         self.progress_callback = progress_callback
@@ -14,7 +14,7 @@ class VideoEngine:
 
         self.temp_silent_video = "tempSilentRender.mp4"
         self.temp_converted_wav = "tempBackgroundDecode.wav"
-        self.output_mp4_path = "completedRender.mp4"
+        self.output_mp4_path = output_path
 
     def _update_status(self, message):
         if self.status_callback:
@@ -33,7 +33,7 @@ class VideoEngine:
             # 1. Convert non-wav formats
             if not self.audio_path.lower().endswith((".wav", ".wave")):
                 self._update_status("Unpacking audio stream...")
-                convert_cmd = ["ffmpeg", "-y", "-i", self.audio_path, self.temp_converted_wav]
+                convert_cmd = ["ffmpeg", "-y", "-i", self.audio_path, "-acodec", "pcm_s16le", "-ar", "44100", self.temp_converted_wav]
                 subprocess.run(convert_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 analysis_path = self.temp_converted_wav
 
