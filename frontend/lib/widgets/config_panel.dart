@@ -85,7 +85,7 @@ class ConfigPanel extends StatelessWidget {
                   Slider(
                     value: barCount,
                     min: 16,
-                    max: 256,
+                    max: 48,
                     divisions: 15,
                     label: barCount.toInt().toString(),
                     onChanged: onBarCountChanged,

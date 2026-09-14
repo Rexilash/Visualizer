@@ -16,47 +16,138 @@ class ColorPickerSection extends StatelessWidget {
     required this.onColorChanged,
   });
 
-  void _pickColor(BuildContext context, String label, Color currentColor, ValueChanged<Color> onSelected) {
-    final List<Color> colorPalette = [
-      const Color(0xFFFF0096),
-      const Color(0xFF00FFFF),
-      const Color(0xFF0064FF),
-      const Color(0xFF0F0F14),
-      Colors.purpleAccent,
-      Colors.amberAccent,
-      Colors.greenAccent,
-      Colors.deepOrangeAccent,
-      Colors.black,
-      Colors.white,
-    ];
+  void _openFullColorPicker(BuildContext context, String label, Color currentColor, ValueChanged<Color> onSelected) {
+    Color selectedColor = currentColor;
+    final hexController = TextEditingController(
+      text: currentColor.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase(),
+    );
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Select $label Color'),
-        content: Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: colorPalette.map((color) {
-            return GestureDetector(
-              onTap: () {
-                onSelected(color);
-                Navigator.pop(context);
-              },
-              child: CircleAvatar(
-                backgroundColor: color,
-                radius: 20,
-                child: currentColor == color
-                    ? Icon(
-                        Icons.check,
-                        color: color.computeLuminance() > 0.5 ? Colors.black : Colors.white,
-                      )
-                    : null,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setPickerState) {
+            return AlertDialog(
+              title: Text('Custom $label Color'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Color Preview Box
+                    Container(
+                      height: 60,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: selectedColor,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // HEX Code Field
+                    TextField(
+                      controller: hexController,
+                      decoration: const InputDecoration(
+                        labelText: 'Hex Code (#)',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      onChanged: (val) {
+                        final hex = val.replaceAll('#', '');
+                        if (hex.length == 6) {
+                          final intColor = int.tryParse('FF$hex', radix: 16);
+                          if (intColor != null) {
+                            setPickerState(() {
+                              selectedColor = Color(intColor);
+                            });
+                          }
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    // RGB Channel Sliders
+                    _buildChannelSlider(
+                      label: 'Red',
+                      value: selectedColor.red.toDouble(),
+                      activeColor: Colors.redAccent,
+                      onChanged: (v) {
+                        setPickerState(() {
+                          selectedColor = selectedColor.withRed(v.toInt());
+                          hexController.text = selectedColor.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();
+                        });
+                      },
+                    ),
+                    _buildChannelSlider(
+                      label: 'Green',
+                      value: selectedColor.green.toDouble(),
+                      activeColor: Colors.greenAccent,
+                      onChanged: (v) {
+                        setPickerState(() {
+                          selectedColor = selectedColor.withGreen(v.toInt());
+                          hexController.text = selectedColor.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();
+                        });
+                      },
+                    ),
+                    _buildChannelSlider(
+                      label: 'Blue',
+                      value: selectedColor.blue.toDouble(),
+                      activeColor: Colors.blueAccent,
+                      onChanged: (v) {
+                        setPickerState(() {
+                          selectedColor = selectedColor.withBlue(v.toInt());
+                          hexController.text = selectedColor.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();
+                        });
+                      },
+                    ),
+                  ],
+                ),
               ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    onSelected(selectedColor);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Apply Color'),
+                ),
+              ],
             );
-          }).toList(),
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildChannelSlider({
+    required String label,
+    required double value,
+    required Color activeColor,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            Text(value.toInt().toString(), style: const TextStyle(fontSize: 12)),
+          ],
         ),
-      ),
+        Slider(
+          value: value,
+          min: 0,
+          max: 255,
+          activeColor: activeColor,
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 
@@ -73,7 +164,7 @@ class ColorPickerSection extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: chips.map((chip) {
         return InkWell(
-          onTap: () => _pickColor(
+          onTap: () => _openFullColorPicker(
             context,
             chip.label,
             chip.color,
@@ -87,6 +178,7 @@ class ColorPickerSection extends StatelessWidget {
                 CircleAvatar(
                   backgroundColor: chip.color,
                   radius: 18,
+                  child: Icon(Icons.colorize, size: 14, color: chip.color.computeLuminance() > 0.5 ? Colors.black : Colors.white),
                 ),
                 const SizedBox(height: 4),
                 Text(chip.label, style: const TextStyle(fontSize: 11)),

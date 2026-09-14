@@ -7,117 +7,132 @@ class FrameRenderer:
         self.settings = settings
         self.width, self.height = settings["resolution"]
         self.scale = self.height / 1080.0
-        borderWidth = self.settings["borderWidth"]
-        usableHeight = self.height - (borderWidth * 2)
-        maxBarPixels = int(usableHeight * self.settings["maxHeightPct"])
 
+        # 1. Define Uniform Outer Margins / Inner Container Bounding Box
+        self.margin_x = int(self.width * 0.1)
+        self.margin_y = int(self.height * 0.1)
+
+        self.container_x1 = self.margin_x
+        self.container_x2 = self.width - self.margin_x
+        self.container_y1 = self.margin_y
+        self.container_y2 = self.height - self.margin_y
+
+        self.container_w = self.container_x2 - self.container_x1
+        self.container_h = self.container_y2 - self.container_y1
+
+        # 2. Proportional Vertical Allocation inside Container
+        self.max_bar_height = int(self.container_h * 0.74)  # Cap bar height
+        self.bars_bottom = self.container_y1 + self.max_bar_height
+
+        self.progress_y = self.container_y1 + int(self.container_h * 0.8025)
+        self.title_y = self.container_y1 + int(self.container_h * 0.92)
+        self.artist_y = self.container_y1 + int(self.container_h * 1)
+
+        # Pre-generate vertical gradient matched strictly to container bar zone
         barBackground = np.array([
             [settings["tertiaryColor"]], 
             [settings["secondaryColor"]],
             [settings["primaryColor"]],
         ], dtype=np.uint8)
-        gradient = cv2.resize(barBackground, (self.width, maxBarPixels), interpolation=cv2.INTER_LINEAR)
+        gradient = cv2.resize(barBackground, (self.width, self.max_bar_height), interpolation=cv2.INTER_LINEAR)
 
         self.staticBarBackground = np.zeros((self.height, self.width, 3), dtype=np.uint8)
-        baselineY = self.height - borderWidth
-        top_y = max(0, baselineY - maxBarPixels)
-        self.staticBarBackground[top_y:baselineY, :] = gradient
+        self.staticBarBackground[self.container_y1:self.bars_bottom, :] = gradient
 
-    def renderFrame(self, audioFrameData):
+    def _draw_rounded_rect(self, img, pt1, pt2, color, radius, thickness=-1):
+        x1, y1 = pt1
+        x2, y2 = pt2
+        w, h = x2 - x1, y2 - y1
+
+        if w <= 0 or h <= 0:
+            return
+
+        radius = max(1, min(radius, w // 2, h // 2))
+
+        cv2.rectangle(img, (x1 + radius, y1), (x2 - radius, y2), color, thickness)
+        cv2.rectangle(img, (x1, y1 + radius), (x2, y2 - radius), color, thickness)
+
+        cv2.circle(img, (x1 + radius, y1 + radius), radius, color, thickness)
+        cv2.circle(img, (x2 - radius, y1 + radius), radius, color, thickness)
+        cv2.circle(img, (x1 + radius, y2 - radius), radius, color, thickness)
+        cv2.circle(img, (x2 - radius, y2 - radius), radius, color, thickness)
+
+    def renderFrame(self, audioFrameData, progress=0.0):
         frame = np.zeros((self.height, self.width, 3), dtype=np.uint8)
         frame[:] = self.settings["bgColor"]
 
-        # Layer 1: Draw faded text onto background
+        self._drawBars(frame, audioFrameData)
+        self._drawProgressBar(frame, progress)
         self._drawText(frame)
+        self._drawBorder(frame)
 
+        return frame
+
+    def _drawBars(self, frame, audioFrameData):
         count = len(audioFrameData)
         if count == 0:
-            self._drawBorder(frame)
-            return frame
+            return
 
-        # Layer 2: Audio spectrum bars over text
         mask = np.zeros((self.height, self.width), dtype=np.uint8)
-        borderWidth = self.settings["borderWidth"]
-        gap = self.settings["barGap"]
-        baselineY = self.height - borderWidth
-        usableWidth = self.width - (borderWidth * 2)
-        usableHeight = self.height - (borderWidth * 2)
-        total_bar_space = usableWidth - (gap * (count + 1))
-        maxBarPixels = int(usableHeight * self.settings["maxHeightPct"])
+        gap = max(8, int(16 * self.scale))
+        total_gaps = gap * (count - 1)
+
+        bar_width = max(2, (self.container_w - total_gaps) // count)
+        total_rendered_w = (bar_width * count) + total_gaps
+        start_x = self.container_x1 + (self.container_w - total_rendered_w) // 2
+
+        corner_radius = max(2, int(bar_width // 2))
 
         for i in range(count):
             amplitude = audioFrameData[i]
-            barHeight = int(amplitude * maxBarPixels)
-            bar_left = int(i * total_bar_space / count)
-            bar_right = int((i + 1) * total_bar_space / count)
-            x1 = borderWidth + (gap * (i + 1)) + bar_left
-            x2 = borderWidth + (gap * (i + 1)) + bar_right
-            y1 = baselineY - barHeight
-            cv2.rectangle(mask, (x1, y1), (x2, baselineY), 255, -1)
+            bar_h = int(amplitude * self.max_bar_height)
+
+            if bar_h < corner_radius * 2:
+                bar_h = corner_radius * 2
+
+            x1 = start_x + i * (bar_width + gap)
+            x2 = x1 + bar_width
+            y1 = self.bars_bottom - bar_h
+            y2 = self.bars_bottom
+
+            self._draw_rounded_rect(mask, (x1, y1), (x2, y2), 255, radius=corner_radius, thickness=-1)
 
         cv2.copyTo(src=self.staticBarBackground, mask=mask, dst=frame)
 
-        # Layer 3: Framing border
-        self._drawBorder(frame)
-        return frame
+    def _drawProgressBar(self, frame, progress):
+        bar_h = max(4, int(6 * self.scale))
+
+        x1 = self.container_x1
+        y1 = self.progress_y
+        x2 = self.container_x2
+        y2 = self.progress_y + bar_h
+
+        track_color = (50, 50, 60)
+        self._draw_rounded_rect(frame, (x1, y1), (x2, y2), track_color, radius=bar_h // 2)
+
+        if progress > 0.0:
+            fill_x2 = int(x1 + (x2 - x1) * np.clip(progress, 0.0, 1.0))
+            if fill_x2 > x1:
+                self._draw_rounded_rect(frame, (x1, y1), (fill_x2, y2), self.settings["primaryColor"], radius=bar_h // 2)
 
     def _drawText(self, frame):
         font = cv2.FONT_HERSHEY_SIMPLEX
-        margin = int(self.settings["borderWidth"] + (60 * self.scale))
-        titleScale = 2.5 * self.scale
-        artistScale = 1.2 * self.scale
-        titleY = int(150 * self.scale)
-        artistY = int(240 * self.scale)
-        titleThick = max(1, int(5 * self.scale))
+        titleScale = 2 * self.scale
+        artistScale = 1.5 * self.scale
+        titleThick = max(1, int(3 * self.scale))
         artistThick = max(1, int(2 * self.scale))
 
-        text_items = [
-            (self.settings["title"], titleY, titleScale, self.settings["titleColor"], titleThick),
-            (self.settings["artist"], artistY, artistScale, self.settings["artistColor"], artistThick)
-        ]
+        if self.settings.get("title"):
+            title = self.settings["title"]
+            (w, _), _ = cv2.getTextSize(title, font, titleScale, titleThick)
+            titleX = self.container_x1 + (self.container_w - w) // 2
+            cv2.putText(frame, title, (titleX, self.title_y), font, titleScale, self.settings["titleColor"], titleThick, cv2.LINE_AA)
 
-        for text, y_baseline, scale, color, thickness in text_items:
-            if not text:
-                continue
-
-            # 1. Get exact text dimensions
-            (text_w, text_h), baseline = cv2.getTextSize(text, font, scale, thickness)
-            if text_w == 0 or text_h == 0:
-                continue
-
-            # 2. Define local container bounds (ROI) on the frame
-            box_x1 = max(0, margin)
-            box_y1 = max(0, y_baseline - text_h - 2)
-            box_x2 = min(self.width, margin + text_w + 10)
-            box_y2 = min(self.height, y_baseline + baseline + 2)
-
-            box_h = box_y2 - box_y1
-            box_w = box_x2 - box_x1
-
-            if box_h <= 0 or box_w <= 0:
-                continue
-
-            # 3. Create isolated container and alpha mask for this text block
-            container = np.zeros((box_h, box_w, 3), dtype=np.uint8)
-            mask = np.zeros((box_h, box_w), dtype=np.uint8)
-
-            local_x = margin - box_x1
-            local_y = y_baseline - box_y1
-
-            cv2.putText(container, text, (local_x, local_y), font, scale, color, thickness, cv2.LINE_AA)
-            cv2.putText(mask, text, (local_x, local_y), font, scale, 255, thickness, cv2.LINE_AA)
-
-            # 4. Local gradient scaled strictly to this container's height (100% top to 30% bottom)
-            fade_1d = np.linspace(1.0, 0.3, box_h, dtype=np.float32)
-            local_alpha = (mask / 255.0).astype(np.float32) * fade_1d[:, None]
-            local_alpha = local_alpha[:, :, None]
-
-            # 5. Blend local container directly onto frame background ROI
-            frame_roi = frame[box_y1:box_y2, box_x1:box_x2].astype(np.float32)
-            container_float = container.astype(np.float32)
-
-            blended_roi = frame_roi * (1.0 - local_alpha) + container_float * local_alpha
-            frame[box_y1:box_y2, box_x1:box_x2] = np.clip(blended_roi, 0, 255).astype(np.uint8)
+        if self.settings.get("artist"):
+            artist = self.settings["artist"]
+            (w, _), _ = cv2.getTextSize(artist, font, artistScale, artistThick)
+            artistX = self.container_x1 + (self.container_w - w) // 2
+            cv2.putText(frame, artist, (artistX, self.artist_y), font, artistScale, self.settings["artistColor"], artistThick, cv2.LINE_AA)
 
     def _drawBorder(self, frame):
         borderWidth = self.settings["borderWidth"]

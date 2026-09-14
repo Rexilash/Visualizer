@@ -89,10 +89,10 @@ def get_preview():
     settings = config.get_renderer_settings(title="PREVIEW MODE", override_res=(1280, 720))
     
     # Generate synthetic spectrum data for preview canvas
-    sample_bars = np.sin(np.linspace(0, np.pi, config.num_bars)) * 0.75 + 0.1
+    sample_bars = np.sin(np.linspace(0, np.pi, config.num_bars)) * 0.9 + 0.1
     
     renderer = FrameRenderer(settings)
-    bgr_frame = renderer.renderFrame(sample_bars)
+    bgr_frame = renderer.renderFrame(sample_bars, progress=0.45)
     
     # Encode BGR numpy array directly into JPEG bytes
     success, buffer = cv2.imencode('.jpg', bgr_frame)

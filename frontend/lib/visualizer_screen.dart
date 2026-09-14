@@ -17,7 +17,7 @@ class VisualizerStudioScreen extends StatefulWidget {
 class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
   // Config State
   String selectedResolution = 'FHD (1920x1080)';
-  double barCount = 64;
+  double barCount = 32;
   String? selectedFilePath;
   bool isRendering = false;
   double renderProgress = 0.0;

@@ -47,9 +47,11 @@ class VideoEngine:
             video_writer = cv2.VideoWriter(self.temp_silent_video, fourcc, float(audio.fps), (width, height))
 
             # 2. Render loop
+            # Replace line 43 inside render() loop with:
             for frame_idx in range(audio.totalFrames):
                 bar_data = audio.getFrameData(frame_idx)
-                completed_frame = renderer.renderFrame(bar_data)
+                progress = frame_idx / float(max(1, audio.totalFrames))
+                completed_frame = renderer.renderFrame(bar_data, progress=progress)
                 video_writer.write(completed_frame)
 
                 if frame_idx % 15 == 0:
