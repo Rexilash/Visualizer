@@ -8,6 +8,11 @@ class RenderConfig:
         }
         self.selected_res_key = "FHD (1920x1080)"
         self.num_bars = 64
+
+        self.title = "Visualizer"
+        self.artist = "Spectrum Engine"
+        self.bg_mode = "color"
+        self.bg_image_path = ""
         
         # Color state (RGB)
         self.rgb_primary = (255, 0, 150)
@@ -40,5 +45,9 @@ class RenderConfig:
             "borderColor1": (30, 30, 30),
             "borderColor2": bgr_primary,
             "barGap": 4,
-            "maxHeightPct": 0.82
+            "maxHeightPct": 0.82,
+            "bg_mode": self.bg_mode,
+            "bg_image_path": self.bg_image_path,
+            "title": self.title,
+            "artist": self.artist
         }

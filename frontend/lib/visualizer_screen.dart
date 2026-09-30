@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widget_previews.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:async';
 import '../widgets/config_panel.dart';
 import 'widgets/preview.dart';
 import 'api_service.dart';
-import 'dart:async';
-import 'package:file_picker/file_picker.dart';
-
 
 class VisualizerStudioScreen extends StatefulWidget {
   const VisualizerStudioScreen({super.key});
@@ -18,7 +16,17 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
   // Config State
   String selectedResolution = 'FHD (1920x1080)';
   double barCount = 32;
+  
+  String songTitle = "VISUALIZER RENDER";
+  String artistName = "Spectrum Visualizer Engine";
+
+  String bgMode = "color"; // "color" or "image"
+  String? bgImagePath;
+
+  String audioSourceMode = "file"; // "file" or "url"
+  String audioUrl = "";
   String? selectedFilePath;
+
   bool isRendering = false;
   double renderProgress = 0.0;
   String previewUrl = ApiService.getPreviewUrl();
@@ -49,6 +57,10 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
     ApiService.updateConfig(
       resKey: selectedResolution,
       numBars: barCount.toInt(),
+      title: songTitle,
+      artist: artistName,
+      bgMode: bgMode,
+      bgImagePath: bgImagePath,
       rgbPrimary: [primaryColor.red, primaryColor.green, primaryColor.blue],
       rgbSecondary: [secondaryColor.red, secondaryColor.green, secondaryColor.blue],
       rgbTertiary: [tertiaryColor.red, tertiaryColor.green, tertiaryColor.blue],
@@ -110,9 +122,9 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
       return;
     }
 
-    if (selectedFilePath == null) return;
+    String audioSource = audioSourceMode == 'file' ? (selectedFilePath ?? '') : audioUrl.trim();
+    if (audioSource.isEmpty) return;
 
-    // Use pre-selected path or prompt if not selected yet
     String? finalPath = selectedOutputPath;
 
     if (finalPath == null) {
@@ -128,13 +140,13 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
         type: FileType.custom,
       );
 
-      if (finalPath == null) return; // User cancelled prompt
+      if (finalPath == null) return;
       setState(() {
         selectedOutputPath = finalPath;
       });
     }
 
-    final started = await ApiService.startRender(selectedFilePath!, finalPath);
+    final started = await ApiService.startRender(audioSource, finalPath);
     if (started) {
       setState(() {
         isRendering = true;
@@ -170,11 +182,17 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
         child: Row(
           children: [
             SizedBox(
-              width: 380,
+              width: 400,
               child: ConfigPanel(
                 selectedResolution: selectedResolution,
                 resolutionOptions: resolutionOptions,
                 barCount: barCount,
+                title: songTitle,
+                artist: artistName,
+                bgMode: bgMode,
+                bgImagePath: bgImagePath,
+                audioSourceMode: audioSourceMode,
+                audioUrl: audioUrl,
                 selectedFilePath: selectedFilePath,
                 isRendering: isRendering,
                 renderProgress: renderProgress,
@@ -182,6 +200,8 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
                 secondaryColor: secondaryColor,
                 tertiaryColor: tertiaryColor,
                 bgColor: bgColor,
+                outputFileName: customFileName,
+                selectedOutputPath: selectedOutputPath,
                 onResolutionChanged: (val) {
                   if (val != null) {
                     setState(() => selectedResolution = val);
@@ -192,12 +212,28 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
                   setState(() => barCount = val);
                   _syncConfigToBackend();
                 },
+                onTitleChanged: (val) {
+                  songTitle = val;
+                  _syncConfigToBackend();
+                },
+                onArtistChanged: (val) {
+                  artistName = val;
+                  _syncConfigToBackend();
+                },
+                onBgModeChanged: (val) {
+                  setState(() => bgMode = val);
+                  _syncConfigToBackend();
+                },
+                onBgImageSelected: (path) {
+                  setState(() => bgImagePath = path);
+                  _syncConfigToBackend();
+                },
+                onAudioSourceModeChanged: (val) => setState(() => audioSourceMode = val),
+                onAudioUrlChanged: (val) => setState(() => audioUrl = val),
                 onColorChanged: _handleColorChange,
                 onFileSelected: (path) => setState(() => selectedFilePath = path),
                 onToggleRender: _toggleRender,
-                outputFileName: customFileName,
                 onOutputFileNameChanged: (val) => setState(() => customFileName = val),
-                selectedOutputPath: selectedOutputPath,
                 onSelectOutputPath: _selectSavePath,
               ),
             ),
@@ -213,13 +249,4 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
       ),
     );
   }
-}
-
-// Widget Preview Entrypoint
-@Preview(name: 'Visualizer Studio Screen')
-Widget visualizerStudioPreview() {
-  return MaterialApp(
-    theme: ThemeData.dark(useMaterial3: true),
-    home: const VisualizerStudioScreen(),
-  );
 }

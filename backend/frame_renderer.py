@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import os
 
 
 class FrameRenderer:
@@ -7,6 +8,14 @@ class FrameRenderer:
         self.settings = settings
         self.width, self.height = settings["resolution"]
         self.scale = self.height / 1080.0
+
+        self.bg_image =  None
+        if settings.get("bg_mode") == "image" and settings.get("bg_image_path"):
+            img_path = settings["bg_image_path"]
+            if os.path.exists(img_path):
+                loaded_img = cv2.imread(img_path)
+                if loaded_img is not None:
+                    self.bg_image = cv2.resize(loaded_img, (self.width, self.height), interpolation=cv2.INTER_AREA)
 
         # 1. Define Uniform Outer Margins / Inner Container Bounding Box
         self.margin_x = int(self.width * 0.1)

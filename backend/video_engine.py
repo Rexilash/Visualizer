@@ -30,8 +30,11 @@ class VideoEngine:
         video_writer = None
 
         try:
+            if self.audio_path.startswith(("http://", "https://")):
+                self._download_url_audio(self.audio_path)
+                analysis_path = self.temp_converted_wav
             # 1. Convert non-wav formats
-            if not self.audio_path.lower().endswith((".wav", ".wave")):
+            elif not self.audio_path.lower().endswith((".wav", ".wave")):
                 self._update_status("Unpacking audio stream...")
                 convert_cmd = ["ffmpeg", "-y", "-i", self.audio_path, "-acodec", "pcm_s16le", "-ar", "44100", self.temp_converted_wav]
                 subprocess.run(convert_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

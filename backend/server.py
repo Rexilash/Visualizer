@@ -2,7 +2,7 @@ import os
 import cv2
 import numpy as np
 import threading
-from typing import List
+from typing import List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -46,6 +46,10 @@ class ConfigUpdateRequest(BaseModel):
     rgb_secondary: List[int] = [0, 255, 255]
     rgb_tertiary: List[int] = [0, 100, 255]
     rgb_bg: List[int] = [15, 15, 20]
+    title: str = "VISUALIZER RENDER"
+    artist: str = "Spectrum Visualizer Engine"
+    bg_mode: str = "color"
+    bg_image_path: Optional[str] = ""
 
 class RenderStartRequest(BaseModel):
     audio_path: str
@@ -61,6 +65,10 @@ def get_config():
     return {
         "selected_res_key": config.selected_res_key,
         "num_bars": config.num_bars,
+        "title": config.title,
+        "artist": config.artist,
+        "bg_mode": config.bg_mode,
+        "bg_image_path": config.bg_image_path,
         "rgb_primary": config.rgb_primary,
         "rgb_secondary": config.rgb_secondary,
         "rgb_tertiary": config.rgb_tertiary,
@@ -71,10 +79,13 @@ def get_config():
 
 @app.post("/api/config")
 def update_config(req: ConfigUpdateRequest):
-    """Updates render settings and color schemes."""
     if req.res_key in config.res_options:
         config.selected_res_key = req.res_key
     config.num_bars = req.num_bars
+    config.title = req.title
+    config.artist = req.artist
+    config.bg_mode = req.bg_mode
+    config.bg_image_path = req.bg_image_path or ""
     config.rgb_primary = tuple(req.rgb_primary)
     config.rgb_secondary = tuple(req.rgb_secondary)
     config.rgb_tertiary = tuple(req.rgb_tertiary)

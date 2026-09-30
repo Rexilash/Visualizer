@@ -12,6 +12,10 @@ class ApiService {
   static Future<void> updateConfig({
     required String resKey,
     required int numBars,
+    required String title,
+    required String artist,
+    required String bgMode,
+    required String? bgImagePath,
     required List<int> rgbPrimary,
     required List<int> rgbSecondary,
     required List<int> rgbTertiary,
@@ -24,6 +28,10 @@ class ApiService {
         body: jsonEncode({
           'res_key': resKey,
           'num_bars': numBars,
+          'title': title,
+          'artist': artist,
+          'bg_mode': bgMode,
+          'bg_image_path': bgImagePath ?? '',
           'rgb_primary': rgbPrimary,
           'rgb_secondary': rgbSecondary,
           'rgb_tertiary': rgbTertiary,
