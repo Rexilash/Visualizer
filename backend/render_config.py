@@ -11,7 +11,7 @@ class RenderConfig:
 
         self.title = "Visualizer"
         self.artist = "Spectrum Engine"
-        self.bg_mode = "color"
+        self.bg_mode = "color" # "color" or "image"
         self.bg_image_path = ""
         
         # Color state (RGB)
@@ -24,7 +24,7 @@ class RenderConfig:
     def resolution(self):
         return self.res_options[self.selected_res_key]
 
-    def get_renderer_settings(self, title="VISUALIZER RENDER", override_res=None):
+    def get_renderer_settings(self, title=None, override_res=None):
         """Converts internal RGB state to OpenCV BGR dict format."""
         bgr_primary = (int(self.rgb_primary[2]), int(self.rgb_primary[1]), int(self.rgb_primary[0]))
         bgr_secondary = (int(self.rgb_secondary[2]), int(self.rgb_secondary[1]), int(self.rgb_secondary[0]))
@@ -34,9 +34,9 @@ class RenderConfig:
         return {
             "resolution": override_res if override_res else self.resolution,
             "bgColor": bgr_bg,
-            "title": title,
+            "title": title if title is not None else self.title,
             "titleColor": (255, 255, 255),
-            "artist": "Spectrum Visualizer Engine",
+            "artist": self.artist,
             "artistColor": (180, 180, 180),
             "primaryColor": bgr_primary,
             "secondaryColor": bgr_secondary,
@@ -48,6 +48,4 @@ class RenderConfig:
             "maxHeightPct": 0.82,
             "bg_mode": self.bg_mode,
             "bg_image_path": self.bg_image_path,
-            "title": self.title,
-            "artist": self.artist
-        }
+    }

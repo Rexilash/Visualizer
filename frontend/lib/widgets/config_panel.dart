@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'color_picker_section.dart';
 
+/// Interactive Settings Configuration Sidebar widget with dynamic scroll top/bottom shadows.
 class ConfigPanel extends StatefulWidget {
   final String selectedResolution;
   final List<String> resolutionOptions;
@@ -135,6 +136,7 @@ class _ConfigPanelState extends State<ConfigPanel> {
                         controller: _scrollController,
                         padding: const EdgeInsets.only(bottom: 30.0),
                         children: [
+
                           // Track Metadata
                           const Text('Track Information', style: TextStyle(fontWeight: FontWeight.w600)),
                           const SizedBox(height: 8),
@@ -277,6 +279,8 @@ class _ConfigPanelState extends State<ConfigPanel> {
                       ),
                     )
                   ),
+
+                  // Top Fade Shadow Overlay
                   if (_showTopShadow)
                     Positioned(
                       top: 0,
@@ -299,6 +303,7 @@ class _ConfigPanelState extends State<ConfigPanel> {
                       ),
                     ),
 
+                  // Bottom Fade Shadow Overlay
                   if (_showBottomShadow)
                     Positioned(
                       bottom: 0,

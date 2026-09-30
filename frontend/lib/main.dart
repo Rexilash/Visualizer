@@ -5,6 +5,7 @@ void main() {
   runApp(const Visualizer());
 }
 
+/// Root Widget configuring dark theme and app scaffolding.
 class Visualizer extends StatelessWidget {
   const Visualizer({super.key});
 

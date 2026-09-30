@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// Modal Dialog Color Picker providing custom RGB channel sliders and Hex input fields.
 class ColorPickerSection extends StatelessWidget {
   final Color primaryColor;
   final Color secondaryColor;
@@ -33,6 +34,7 @@ class ColorPickerSection extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    
                     // Color Preview Box
                     Container(
                       height: 60,

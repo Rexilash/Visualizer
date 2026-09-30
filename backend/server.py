@@ -7,12 +7,15 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
+from threading import Lock
 
 from .render_config import RenderConfig
 from .frame_renderer import FrameRenderer
 from .video_engine import VideoEngine
 
 app = FastAPI(title="Visualizer Engine API")
+
+state_lock = Lock()
 
 # Allow CORS requests from Flutter Desktop / Web
 app.add_middleware(
@@ -97,7 +100,7 @@ def update_config(req: ConfigUpdateRequest):
 @app.get("/api/preview")
 def get_preview():
     """Generates a single JPEG preview frame based on the current configuration."""
-    settings = config.get_renderer_settings(title="PREVIEW MODE", override_res=(1280, 720))
+    settings = config.get_renderer_settings(override_res=(1280, 720))
     
     # Generate synthetic spectrum data for preview canvas
     sample_bars = np.sin(np.linspace(0, np.pi, config.num_bars)) * 0.9 + 0.1
@@ -129,11 +132,13 @@ def start_render(req: RenderStartRequest):
     render_state["status_message"] = "Initializing engine..."
 
     def _progress_callback(current, total):
-        render_state["progress"] = current
-        render_state["total_frames"] = total
+        with state_lock:
+            render_state["progress"] = current
+            render_state["total_frames"] = total
 
     def _status_callback(msg):
-        render_state["status_message"] = msg
+        with state_lock:
+            render_state["status_message"] = msg
 
     def _worker():
         engine = VideoEngine(
@@ -155,7 +160,9 @@ def start_render(req: RenderStartRequest):
     return {"status": "started"}
 
 
+
 @app.get("/api/render/status")
 def get_render_status():
     """Polled by Flutter to track rendering progress."""
-    return render_state
+    with state_lock:
+        return render_state

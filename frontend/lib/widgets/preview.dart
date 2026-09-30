@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+/// Renders a dynamic live stream preview from the backend.
 class PreviewPanel extends StatelessWidget {
   final Color bgColor;
   final String previewUrl;
@@ -40,7 +41,7 @@ class PreviewPanel extends StatelessWidget {
                       color: bgColor,
                       child: Image.network(
                         previewUrl,
-                        key: ValueKey(previewUrl),
+                        gaplessPlayback: true,
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) {
                           return Center(

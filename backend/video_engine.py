@@ -3,15 +3,18 @@ import cv2
 import subprocess
 from .audio_analyzer import AudioAnalyzer
 from .frame_renderer import FrameRenderer
+import uuid
 
 
 class VideoEngine:
+    """Manages full video frame generation, audio extraction, and FFmpeg muxing."""
     def __init__(self, audio_path, config, progress_callback=None, status_callback=None, output_path=None):
         self.audio_path = audio_path
         self.config = config
         self.progress_callback = progress_callback
         self.status_callback = status_callback
 
+        session_id = str(uuid.uuid4())[:8]
         self.temp_silent_video = "tempSilentRender.mp4"
         self.temp_converted_wav = "tempBackgroundDecode.wav"
         self.output_mp4_path = output_path
@@ -24,22 +27,29 @@ class VideoEngine:
         if self.progress_callback:
             self.progress_callback(current, total)
 
+    def _download_url_audio(self, url: str):
+        """Streams direct network audio URLs to a local 16-bit PCM WAV using FFmpeg."""
+        self._update_status("Fetching audio stream from URL...")
+        cmd = ["ffmpeg", "-y", "-i", url, "-acodec", "pcm_s16le", "-ar", "44100", self.temp_converted_wav]
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
     def render(self):
         """Executes the rendering and mixing pipeline."""
         analysis_path = self.audio_path
         video_writer = None
 
         try:
+            # 1. Process Network URLs or Non-WAV Files
             if self.audio_path.startswith(("http://", "https://")):
                 self._download_url_audio(self.audio_path)
                 analysis_path = self.temp_converted_wav
-            # 1. Convert non-wav formats
             elif not self.audio_path.lower().endswith((".wav", ".wave")):
                 self._update_status("Unpacking audio stream...")
                 convert_cmd = ["ffmpeg", "-y", "-i", self.audio_path, "-acodec", "pcm_s16le", "-ar", "44100", self.temp_converted_wav]
                 subprocess.run(convert_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 analysis_path = self.temp_converted_wav
 
+            # 2. Setup Audio FFT Analyzer & Frame Renderer
             self._update_status("Rendering video frames...")
             audio = AudioAnalyzer(analysis_path, targetFPS=60, numBars=self.config.num_bars)
             settings = self.config.get_renderer_settings()
@@ -49,7 +59,7 @@ class VideoEngine:
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             video_writer = cv2.VideoWriter(self.temp_silent_video, fourcc, float(audio.fps), (width, height))
 
-            # 2. Render loop
+            # 3. Render loop
             # Replace line 43 inside render() loop with:
             for frame_idx in range(audio.totalFrames):
                 bar_data = audio.getFrameData(frame_idx)
@@ -63,7 +73,7 @@ class VideoEngine:
             video_writer.release()
             video_writer = None
 
-            # 3. Audio/Video FFmpeg merge
+            # 4. Audio/Video FFmpeg merge
             self._update_status("Merging audio track...")
             ffmpeg_cmd = [
                 "ffmpeg", "-y", "-i", self.temp_silent_video, "-i", analysis_path, 

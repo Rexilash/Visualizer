@@ -1,14 +1,16 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+/// HTTP Service handling communication between Flutter UI and FastAPI backend.
 class ApiService {
-  static const String baseUrl = 'http://127.0.0.1:8000';
+  static String baseUrl = const String.fromEnvironment('API_BASE_URL', defaultValue: 'http://127.0.0.1:8000');
 
   /// Cache-busted preview image URL for live streaming update
   static String getPreviewUrl() {
     return '$baseUrl/api/preview?t=${DateTime.now().millisecondsSinceEpoch}';
   }
 
+  /// Sends updated configuration parameters to backend.
   static Future<void> updateConfig({
     required String resKey,
     required int numBars,
@@ -41,6 +43,7 @@ class ApiService {
     } catch (_) {}
   }
 
+  /// Triggers full background video rendering engine.
   static Future<bool> startRender(String audioPath, String outputPath) async {
     try {
       final response = await http.post(
@@ -54,6 +57,7 @@ class ApiService {
     }
   }
 
+  /// Polls rendering progress status.
   static Future<Map<String, dynamic>?> getRenderStatus() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/api/render/status'));

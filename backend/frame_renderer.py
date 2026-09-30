@@ -9,6 +9,7 @@ class FrameRenderer:
         self.width, self.height = settings["resolution"]
         self.scale = self.height / 1080.0
 
+        # Load background image if custom background image mode is selected
         self.bg_image =  None
         if settings.get("bg_mode") == "image" and settings.get("bg_image_path"):
             img_path = settings["bg_image_path"]
@@ -49,6 +50,7 @@ class FrameRenderer:
         self.staticBarBackground[self.container_y1:self.bars_bottom, :] = gradient
 
     def _draw_rounded_rect(self, img, pt1, pt2, color, radius, thickness=-1):
+        """Draws rounded rectangles for smooth bar aesthetics."""
         x1, y1 = pt1
         x2, y2 = pt2
         w, h = x2 - x1, y2 - y1
@@ -67,8 +69,15 @@ class FrameRenderer:
         cv2.circle(img, (x2 - radius, y2 - radius), radius, color, thickness)
 
     def renderFrame(self, audioFrameData, progress=0.0):
+        """Assembles background, spectrum bars, progress indicator, and song titles into a single BGR frame."""
         frame = np.zeros((self.height, self.width, 3), dtype=np.uint8)
         frame[:] = self.settings["bgColor"]
+
+        # Apply solid background color or loaded background image
+        if self.settings.get("bg_mode") == "image" and self.bg_image is not None:
+            frame[:] = self.bg_image.copy()
+        else:
+            frame[:] = self.settings["bgColor"]
 
         self._drawBars(frame, audioFrameData)
         self._drawProgressBar(frame, progress)
@@ -90,22 +99,17 @@ class FrameRenderer:
         total_rendered_w = (bar_width * count) + total_gaps
         start_x = self.container_x1 + (self.container_w - total_rendered_w) // 2
 
-        corner_radius = max(2, int(bar_width // 2))
-
         for i in range(count):
-            amplitude = audioFrameData[i]
-            bar_h = int(amplitude * self.max_bar_height)
-
-            if bar_h < corner_radius * 2:
-                bar_h = corner_radius * 2
-
+            bar_h = max(4, int(audioFrameData[i] * self.max_bar_height))
             x1 = start_x + i * (bar_width + gap)
             x2 = x1 + bar_width
             y1 = self.bars_bottom - bar_h
             y2 = self.bars_bottom
 
-            self._draw_rounded_rect(mask, (x1, y1), (x2, y2), 255, radius=corner_radius, thickness=-1)
+            radius = max(2, min(bar_width // 2, bar_h // 2))
+            self._draw_rounded_rect(mask, (x1, y1), (x2, y2), 255, radius=radius)
 
+        # Apply dynamic gradient through alpha maskz
         cv2.copyTo(src=self.staticBarBackground, mask=mask, dst=frame)
 
     def _drawProgressBar(self, frame, progress):

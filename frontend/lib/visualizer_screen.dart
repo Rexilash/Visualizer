@@ -5,6 +5,7 @@ import '../widgets/config_panel.dart';
 import 'widgets/preview.dart';
 import 'api_service.dart';
 
+/// Main Studio Interface orchestrating Config Panel controls and Live Preview.
 class VisualizerStudioScreen extends StatefulWidget {
   const VisualizerStudioScreen({super.key});
 
@@ -27,10 +28,12 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
   String audioUrl = "";
   String? selectedFilePath;
 
+  // Render & Polling State
   bool isRendering = false;
   double renderProgress = 0.0;
   String previewUrl = ApiService.getPreviewUrl();
   Timer? _statusTimer;
+  Timer? _debounceTimer;
   String customFileName = "Visualizer_output";
   String? selectedOutputPath;
 
@@ -49,25 +52,30 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _statusTimer?.cancel();
     super.dispose();
   }
 
+  /// Pushes latest UI controls state to FastAPI backend and updates live preview canvas
   void _syncConfigToBackend() {
-    ApiService.updateConfig(
-      resKey: selectedResolution,
-      numBars: barCount.toInt(),
-      title: songTitle,
-      artist: artistName,
-      bgMode: bgMode,
-      bgImagePath: bgImagePath,
-      rgbPrimary: [primaryColor.red, primaryColor.green, primaryColor.blue],
-      rgbSecondary: [secondaryColor.red, secondaryColor.green, secondaryColor.blue],
-      rgbTertiary: [tertiaryColor.red, tertiaryColor.green, tertiaryColor.blue],
-      rgbBg: [bgColor.red, bgColor.green, bgColor.blue],
-    ).then((_) {
-      setState(() {
-        previewUrl = ApiService.getPreviewUrl();
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 250), () {
+      ApiService.updateConfig(
+        resKey: selectedResolution,
+        numBars: barCount.toInt(),
+        title: songTitle,
+        artist: artistName,
+        bgMode: bgMode,
+        bgImagePath: bgImagePath,
+        rgbPrimary: [primaryColor.red, primaryColor.green, primaryColor.blue],
+        rgbSecondary: [secondaryColor.red, secondaryColor.green, secondaryColor.blue],
+        rgbTertiary: [tertiaryColor.red, tertiaryColor.green, tertiaryColor.blue],
+        rgbBg: [bgColor.red, bgColor.green, bgColor.blue],
+      ).then((_) {
+        setState(() {
+          previewUrl = ApiService.getPreviewUrl();
+        });
       });
     });
   }
@@ -153,6 +161,7 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
         renderProgress = 0.0;
       });
 
+      // Poll status every 500 milliseconds during active render
       _statusTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) async {
         final status = await ApiService.getRenderStatus();
         if (status != null) {
@@ -213,11 +222,11 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
                   _syncConfigToBackend();
                 },
                 onTitleChanged: (val) {
-                  songTitle = val;
+                  setState(() => songTitle = val);
                   _syncConfigToBackend();
                 },
                 onArtistChanged: (val) {
-                  artistName = val;
+                  setState(() => artistName = val);
                   _syncConfigToBackend();
                 },
                 onBgModeChanged: (val) {
