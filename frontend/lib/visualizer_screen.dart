@@ -1,11 +1,13 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'dart:async';
+import 'package:path/path.dart' as p;
 import '../widgets/config_panel.dart';
 import 'widgets/preview.dart';
-import 'api_service.dart';
+import 'cli_service.dart';
 
-/// Main Studio Interface orchestrating Config Panel controls and Live Preview.
 class VisualizerStudioScreen extends StatefulWidget {
   const VisualizerStudioScreen({super.key});
 
@@ -14,30 +16,29 @@ class VisualizerStudioScreen extends StatefulWidget {
 }
 
 class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
-  // Config State
   String selectedResolution = 'FHD (1920x1080)';
   double barCount = 32;
-  
+
   String songTitle = "VISUALIZER RENDER";
   String artistName = "Spectrum Visualizer Engine";
 
-  String bgMode = "color"; // "color" or "image"
+  String bgMode = "color";
   String? bgImagePath;
 
-  String audioSourceMode = "file"; // "file" or "url"
+  String audioSourceMode = "file";
   String audioUrl = "";
   String? selectedFilePath;
 
-  // Render & Polling State
   bool isRendering = false;
   double renderProgress = 0.0;
-  String previewUrl = ApiService.getPreviewUrl();
-  Timer? _statusTimer;
+  String renderStatusMessage = "Idle";
+  File? previewFile;
+  
   Timer? _debounceTimer;
+  StreamSubscription? _renderSubscription;
   String customFileName = "Visualizer_output";
   String? selectedOutputPath;
 
-  // Colors
   Color primaryColor = const Color(0xFFFF0096);
   Color secondaryColor = const Color(0xFF00FFFF);
   Color tertiaryColor = const Color(0xFF0064FF);
@@ -51,50 +52,59 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _syncConfigToBackend();
+  }
+
+  @override
   void dispose() {
     _debounceTimer?.cancel();
-    _statusTimer?.cancel();
+    _renderSubscription?.cancel();
     super.dispose();
   }
 
-  /// Pushes latest UI controls state to FastAPI backend and updates live preview canvas
+  String _buildConfigJson() {
+    return jsonEncode({
+      'res_key': selectedResolution,
+      'num_bars': barCount.toInt(),
+      'title': songTitle,
+      'artist': artistName,
+      'bg_mode': bgMode,
+      'bg_image_path': bgImagePath ?? '',
+      'rgb_primary': [primaryColor.red, primaryColor.green, primaryColor.blue],
+      'rgb_secondary': [secondaryColor.red, secondaryColor.green, secondaryColor.blue],
+      'rgb_tertiary': [tertiaryColor.red, tertiaryColor.green, tertiaryColor.blue],
+      'rgb_bg': [bgColor.red, bgColor.green, bgColor.blue],
+    });
+  }
+
   void _syncConfigToBackend() {
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 250), () {
-      ApiService.updateConfig(
-        resKey: selectedResolution,
-        numBars: barCount.toInt(),
-        title: songTitle,
-        artist: artistName,
-        bgMode: bgMode,
-        bgImagePath: bgImagePath,
-        rgbPrimary: [primaryColor.red, primaryColor.green, primaryColor.blue],
-        rgbSecondary: [secondaryColor.red, secondaryColor.green, secondaryColor.blue],
-        rgbTertiary: [tertiaryColor.red, tertiaryColor.green, tertiaryColor.blue],
-        rgbBg: [bgColor.red, bgColor.green, bgColor.blue],
-      ).then((_) {
+    _debounceTimer = Timer(const Duration(milliseconds: 200), () async {
+      final tempDir = Directory.systemTemp;
+      final tempPreviewPath = p.join(tempDir.path, 'visualizer_preview.jpg');
+
+      final success = await CliService.generatePreview(
+        configJson: _buildConfigJson(),
+        outputPath: tempPreviewPath,
+      );
+
+      if (success && mounted) {
         setState(() {
-          previewUrl = ApiService.getPreviewUrl();
+          previewFile = File(tempPreviewPath);
         });
-      });
+      }
     });
   }
 
   void _handleColorChange(String label, Color color) {
     setState(() {
       switch (label) {
-        case 'Primary':
-          primaryColor = color;
-          break;
-        case 'Secondary':
-          secondaryColor = color;
-          break;
-        case 'Tertiary':
-          tertiaryColor = color;
-          break;
-        case 'BG':
-          bgColor = color;
-          break;
+        case 'Primary': primaryColor = color; break;
+        case 'Secondary': secondaryColor = color; break;
+        case 'Tertiary': tertiaryColor = color; break;
+        case 'BG': bgColor = color; break;
       }
     });
     _syncConfigToBackend();
@@ -102,9 +112,7 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
 
   Future<void> _selectSavePath() async {
     String formattedName = customFileName.trim().isEmpty ? 'visualizer_output' : customFileName.trim();
-    if (!formattedName.toLowerCase().endsWith('.mp4')) {
-      formattedName += '.mp4';
-    }
+    if (!formattedName.toLowerCase().endsWith('.mp4')) formattedName += '.mp4';
 
     String? savePath = await FilePicker.saveFile(
       dialogTitle: "Select destination for rendered video",
@@ -114,18 +122,18 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
     );
 
     if (savePath != null) {
-      setState(() {
-        selectedOutputPath = savePath;
-      });
+      setState(() => selectedOutputPath = savePath);
     }
   }
 
   Future<void> _toggleRender() async {
     if (isRendering) {
-      _statusTimer?.cancel();
+      CliService.cancelRender();
+      _renderSubscription?.cancel();
       setState(() {
         isRendering = false;
         renderProgress = 0.0;
+        renderStatusMessage = "Cancelled";
       });
       return;
     }
@@ -134,12 +142,9 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
     if (audioSource.isEmpty) return;
 
     String? finalPath = selectedOutputPath;
-
     if (finalPath == null) {
       String formattedName = customFileName.trim().isEmpty ? 'visualizer_output' : customFileName.trim();
-      if (!formattedName.toLowerCase().endsWith('.mp4')) {
-        formattedName += '.mp4';
-      }
+      if (!formattedName.toLowerCase().endsWith('.mp4')) formattedName += '.mp4';
 
       finalPath = await FilePicker.saveFile(
         dialogTitle: "Save rendered video as",
@@ -149,37 +154,35 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
       );
 
       if (finalPath == null) return;
-      setState(() {
-        selectedOutputPath = finalPath;
-      });
+      setState(() => selectedOutputPath = finalPath);
     }
 
-    final started = await ApiService.startRender(audioSource, finalPath);
-    if (started) {
+    setState(() {
+      isRendering = true;
+      renderProgress = 0.0;
+      renderStatusMessage = "Starting render engine...";
+    });
+
+    final stream = CliService.startRender(
+      audioPath: audioSource,
+      configJson: _buildConfigJson(),
+      outputPath: finalPath,
+    );
+
+    _renderSubscription = stream.listen((event) {
+      if (!mounted) return;
       setState(() {
-        isRendering = true;
-        renderProgress = 0.0;
-      });
-
-      // Poll status every 500 milliseconds during active render
-      _statusTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) async {
-        final status = await ApiService.getRenderStatus();
-        if (status != null) {
-          final int progress = status['progress'] ?? 0;
-          final int total = status['total_frames'] ?? 1;
-          final bool active = status['is_rendering'] ?? false;
-
-          setState(() {
-            renderProgress = total > 0 ? progress / total : 0.0;
-            isRendering = active;
-          });
-
-          if (!active) {
-            timer.cancel();
-          }
+        if (event['type'] == 'progress') {
+          final int current = event['current'] ?? 0;
+          final int total = event['total'] ?? 1;
+          renderProgress = total > 0 ? current / total : 0.0;
+        } else if (event['type'] == 'status') {
+          renderStatusMessage = event['message'] ?? '';
+        } else if (event['type'] == 'complete' || event['type'] == 'error') {
+          isRendering = false;
         }
       });
-    }
+    });
   }
 
   @override
@@ -250,7 +253,7 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
             Expanded(
               child: PreviewPanel(
                 bgColor: bgColor,
-                previewUrl: previewUrl,
+                previewFile: previewFile,
               ),
             ),
           ],

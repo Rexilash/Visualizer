@@ -1,14 +1,14 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 
-/// Renders a dynamic live stream preview from the backend.
 class PreviewPanel extends StatelessWidget {
   final Color bgColor;
-  final String previewUrl;
+  final File? previewFile;
 
   const PreviewPanel({
     super.key,
     required this.bgColor,
-    required this.previewUrl,
+    required this.previewFile,
   });
 
   @override
@@ -38,23 +38,23 @@ class PreviewPanel extends StatelessWidget {
                     aspectRatio: 16 / 9,
                     child: Container(
                       color: bgColor,
-                      child: Image.network(
-                        previewUrl,
-                        gaplessPlayback: true,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Center(
-                            child: Text(
-                              "Connecting to API Preview Stream...",
-                              style: TextStyle(color: Colors.white54)
+                      child: previewFile != null && previewFile!.existsSync()
+                          ? Image.file(
+                              previewFile!,
+                              key: ValueKey(previewFile!.lastModifiedSync().millisecondsSinceEpoch),
+                              gaplessPlayback: true,
+                              fit: BoxFit.contain,
                             )
-                          );
-                        },
-                      )
+                          : const Center(
+                              child: Text(
+                                "Generating Preview...",
+                                style: TextStyle(color: Colors.white54),
+                              ),
+                            ),
                     ),
                   ),
-                )
-              )
+                ),
+              ),
             )
           ],
         ),

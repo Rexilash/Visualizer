@@ -1,9 +1,26 @@
 import os
 import cv2
+import sys
 import subprocess
-from .audio_analyzer import AudioAnalyzer
-from .frame_renderer import FrameRenderer
+from audio_analyzer import AudioAnalyzer
+from frame_renderer import FrameRenderer
 import uuid
+import tempfile
+
+
+def get_ffmpeg_cmd():
+    """Dynamically locates bundled ffmpeg.exe or falls back to system PATH."""
+    if getattr(sys, 'frozen', False):
+        bundled_ffmpeg = os.path.join(sys._MEIPASS, "ffmpeg.exe")
+        if os.path.exists(bundled_ffmpeg):
+            return bundled_ffmpeg
+    
+    base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    local_ffmpeg = os.path.join(base_dir, "ffmpeg.exe")
+    if os.path.exists(local_ffmpeg):
+        return local_ffmpeg
+
+    return "ffmpeg"
 
 
 class VideoEngine:
@@ -15,8 +32,11 @@ class VideoEngine:
         self.status_callback = status_callback
 
         session_id = str(uuid.uuid4())[:8]
-        self.temp_silent_video = "tempSilentRender.mp4"
-        self.temp_converted_wav = "tempBackgroundDecode.wav"
+        temp_dir = tempfile.gettempdir()
+        
+        # Save temp files to OS temp directory to avoid permission errors
+        self.temp_silent_video = os.path.join(temp_dir, f"tempSilentRender_{session_id}.mp4")
+        self.temp_converted_wav = os.path.join(temp_dir, f"tempBackgroundDecode_{session_id}.wav")
         self.output_mp4_path = output_path
 
     def _update_status(self, message):
@@ -30,13 +50,15 @@ class VideoEngine:
     def _download_url_audio(self, url: str):
         """Streams direct network audio URLs to a local 16-bit PCM WAV using FFmpeg."""
         self._update_status("Fetching audio stream from URL...")
-        cmd = ["ffmpeg", "-y", "-i", url, "-acodec", "pcm_s16le", "-ar", "44100", self.temp_converted_wav]
+        ffmpeg_bin = get_ffmpeg_cmd()
+        cmd = [ffmpeg_bin, "-y", "-i", url, "-acodec", "pcm_s16le", "-ar", "44100", self.temp_converted_wav]
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     def render(self):
         """Executes the rendering and mixing pipeline."""
         analysis_path = self.audio_path
         video_writer = None
+        ffmpeg_bin = get_ffmpeg_cmd()
 
         try:
             # 1. Process Network URLs or Non-WAV Files
@@ -45,7 +67,7 @@ class VideoEngine:
                 analysis_path = self.temp_converted_wav
             elif not self.audio_path.lower().endswith((".wav", ".wave")):
                 self._update_status("Unpacking audio stream...")
-                convert_cmd = ["ffmpeg", "-y", "-i", self.audio_path, "-acodec", "pcm_s16le", "-ar", "44100", self.temp_converted_wav]
+                convert_cmd = [ffmpeg_bin, "-y", "-i", self.audio_path, "-acodec", "pcm_s16le", "-ar", "44100", self.temp_converted_wav]
                 subprocess.run(convert_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 analysis_path = self.temp_converted_wav
 
@@ -60,7 +82,6 @@ class VideoEngine:
             video_writer = cv2.VideoWriter(self.temp_silent_video, fourcc, float(audio.fps), (width, height))
 
             # 3. Render loop
-            # Replace line 43 inside render() loop with:
             for frame_idx in range(audio.totalFrames):
                 bar_data = audio.getFrameData(frame_idx)
                 progress = frame_idx / float(max(1, audio.totalFrames))
@@ -76,7 +97,7 @@ class VideoEngine:
             # 4. Audio/Video FFmpeg merge
             self._update_status("Merging audio track...")
             ffmpeg_cmd = [
-                "ffmpeg", "-y", "-i", self.temp_silent_video, "-i", analysis_path, 
+                ffmpeg_bin, "-y", "-i", self.temp_silent_video, "-i", analysis_path, 
                 "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", self.output_mp4_path
             ]
             subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
