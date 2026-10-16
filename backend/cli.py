@@ -87,15 +87,23 @@ def main():
     parser.add_argument("--output", type=str, required=True)
 
     args = parser.parse_args()
-    config = parse_config(args.config)
+    
+    try:
+        config = parse_config(args.config)
 
-    if args.mode == "preview":
-        generate_preview(config, args.output)
-    elif args.mode == "render":
-        if not args.audio:
-            print("Error: --audio argument required for render mode", file=sys.stderr)
-            sys.exit(1)
-        execute_render(config, args.audio, args.output)
+        if args.mode == "preview":
+            generate_preview(config, args.output)
+        elif args.mode == "render":
+            if not args.audio:
+                print("Error: --audio argument required for render mode", file=sys.stderr)
+                sys.exit(1)
+            execute_render(config, args.audio, args.output)
+    except Exception as e:
+        import traceback
+        print("\n=== BACKEND CRASH TRACEBACK ===", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        print("===============================\n", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

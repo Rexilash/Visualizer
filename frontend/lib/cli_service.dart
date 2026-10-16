@@ -6,92 +6,152 @@ import 'package:path/path.dart' as p;
 class CliService {
   static Process? _activeRenderProcess;
 
-  static String get _backendPath {
+  static List<String> _getCommand(List<String> args) {
     final exeDir = p.dirname(Platform.resolvedExecutable);
     
-    // Production paths (bundled sibling folders)
-    final prodPathOneDir = p.normalize(p.join(exeDir, '..', 'backend', 'visualizer_backend', 'visualizer_backend.exe'));
-    if (File(prodPathOneDir).existsSync()) return prodPathOneDir;
+    if (Platform.isWindows) {
+      final prodPathOneDir = p.normalize(p.join(exeDir, '..', 'backend', 'visualizer_backend', 'visualizer_backend.exe'));
+      if (File(prodPathOneDir).existsSync()) return [prodPathOneDir, ...args];
 
-    final prodPathStandalone = p.normalize(p.join(exeDir, '..', 'backend', 'visualizer_backend.exe'));
-    if (File(prodPathStandalone).existsSync()) return prodPathStandalone;
+      final prodPathStandalone = p.normalize(p.join(exeDir, '..', 'backend', 'visualizer_backend.exe'));
+      if (File(prodPathStandalone).existsSync()) return [prodPathStandalone, ...args];
+    } else {
+      final prodPathUnix = p.normalize(p.join(exeDir, '..', 'backend', 'visualizer_backend', 'visualizer_backend'));
+      if (File(prodPathUnix).existsSync()) return [prodPathUnix, ...args];
+    }
 
-    // Development fallbacks (running flutter run inside frontend/ or root)
-    final devParentPath = p.normalize(p.join(Directory.current.path, '..', 'backend', 'dist', 'visualizer_backend', 'visualizer_backend.exe'));
-    if (File(devParentPath).existsSync()) return devParentPath;
+    if (Platform.isWindows) {
+      final devParentPath = p.normalize(p.join(Directory.current.path, '..', 'backend', 'dist', 'visualizer_backend', 'visualizer_backend.exe'));
+      if (File(devParentPath).existsSync()) return [devParentPath, ...args];
 
-    return p.join(Directory.current.path, 'backend', 'dist', 'visualizer_backend', 'visualizer_backend.exe');
+      final devLocalPath = p.normalize(p.join(Directory.current.path, 'backend', 'dist', 'visualizer_backend', 'visualizer_backend.exe'));
+      if (File(devLocalPath).existsSync()) return [devLocalPath, ...args];
+    } else {
+      final devParentPathUnix = p.normalize(p.join(Directory.current.path, '..', 'backend', 'dist', 'visualizer_backend', 'visualizer_backend'));
+      if (File(devParentPathUnix).existsSync()) return [devParentPathUnix, ...args];
+    }
+
+    final possibleScriptPaths = [
+      p.normalize(p.join(Directory.current.path, 'backend', 'cli.py')),
+      p.normalize(p.join(Directory.current.path, '..', 'backend', 'cli.py')),
+      p.normalize(p.join(exeDir, '..', '..', '..', 'backend', 'cli.py')),
+      p.normalize(p.join(exeDir, '..', 'backend', 'cli.py')),
+    ];
+
+    String? scriptPath;
+    for (final path in possibleScriptPaths) {
+      if (File(path).existsSync()) {
+        scriptPath = path;
+        break;
+      }
+    }
+    scriptPath ??= possibleScriptPaths.first;
+
+    final String pythonCmd = Platform.isWindows ? 'py' : 'python3';
+    return [pythonCmd, scriptPath, ...args];
   }
 
-  /// Generates a preview image frame on disk via CLI execution.
   static Future<bool> generatePreview({
     required String configJson,
     required String outputPath,
   }) async {
     try {
       final encodedConfig = base64Encode(utf8.encode(configJson));
-      final result = await Process.run(_backendPath, [
+      final cmd = _getCommand([
         '--mode', 'preview',
         '--config', encodedConfig,
         '--output', outputPath,
       ]);
+      final result = await Process.run(cmd.first, cmd.sublist(1));
+      if (result.exitCode != 0) {
+        print('[Preview Error]: ${result.stderr}');
+      }
       return result.exitCode == 0;
     } catch (e) {
+      print('[Preview Exception]: $e');
       return false;
     }
   }
 
-  /// Spawns video rendering process and yields stdout progress updates.
   static Stream<Map<String, dynamic>> startRender({
     required String audioPath,
     required String configJson,
     required String outputPath,
-  }) async* {
-    try {
-      final encodedConfig = base64Encode(utf8.encode(configJson));
-      _activeRenderProcess = await Process.start(_backendPath, [
-        '--mode', 'render',
-        '--audio', audioPath,
-        '--config', encodedConfig,
-        '--output', outputPath,
-      ]);
+  }) {
+    final controller = StreamController<Map<String, dynamic>>();
+    final StringBuffer errorBuffer = StringBuffer();
 
-      final lines = _activeRenderProcess!.stdout
-          .transform(utf8.decoder)
-          .transform(const LineSplitter());
+    () async {
+      try {
+        final encodedConfig = base64Encode(utf8.encode(configJson));
+        final cmd = _getCommand([
+          '--mode', 'render',
+          '--audio', audioPath,
+          '--config', encodedConfig,
+          '--output', outputPath,
+        ]);
 
-      await for (final line in lines) {
-        if (line.startsWith('PROGRESS:')) {
-          final parts = line.replaceFirst('PROGRESS:', '').split(':');
-          if (parts.length == 2) {
-            yield {
-              'type': 'progress',
-              'current': int.tryParse(parts[0]) ?? 0,
-              'total': int.tryParse(parts[1]) ?? 1,
-            };
+        final process = await Process.start(cmd.first, cmd.sublist(1));
+        _activeRenderProcess = process;
+
+        process.stdout
+            .transform(const Utf8Decoder(allowMalformed: true))
+            .transform(const LineSplitter())
+            .listen((line) {
+          print('[Backend Out]: $line'); // Echo to terminal
+          if (line.startsWith('PROGRESS:')) {
+            final parts = line.replaceFirst('PROGRESS:', '').split(':');
+            if (parts.length == 2) {
+              controller.add({
+                'type': 'progress',
+                'current': int.tryParse(parts[0]) ?? 0,
+                'total': int.tryParse(parts[1]) ?? 1,
+              });
+            }
+          } else if (line.startsWith('STATUS:')) {
+            controller.add({
+              'type': 'status',
+              'message': line.replaceFirst('STATUS:', ''),
+            });
+          } else if (line.startsWith('RENDER_COMPLETE:')) {
+            controller.add({
+              'type': 'complete',
+              'output_path': line.replaceFirst('RENDER_COMPLETE:', ''),
+            });
           }
-        } else if (line.startsWith('STATUS:')) {
-          yield {
-            'type': 'status',
-            'message': line.replaceFirst('STATUS:', ''),
-          };
-        } else if (line.startsWith('RENDER_COMPLETE:')) {
-          yield {
-            'type': 'complete',
-            'output_path': line.replaceFirst('RENDER_COMPLETE:', ''),
-          };
-        }
-      }
+        });
 
-      final exitCode = await _activeRenderProcess!.exitCode;
-      if (exitCode != 0) {
-        yield {'type': 'error', 'message': 'Process exited with code $exitCode'};
+        process.stderr
+            .transform(const Utf8Decoder(allowMalformed: true))
+            .transform(const LineSplitter())
+            .listen((line) {
+          if (line.trim().isNotEmpty) {
+            print('[Backend Err]: $line'); // Echo to terminal
+            errorBuffer.writeln(line);
+          }
+        });
+
+        final exitCode = await process.exitCode;
+        if (exitCode != 0 && !controller.isClosed) {
+          controller.add({
+            'type': 'error',
+            'message': errorBuffer.isNotEmpty ? errorBuffer.toString() : 'Process exited with code $exitCode',
+          });
+        }
+        if (!controller.isClosed) {
+          controller.close();
+        }
+      } catch (e) {
+        if (!controller.isClosed) {
+          controller.add({'type': 'error', 'message': e.toString()});
+          controller.close();
+        }
+      } finally {
+        _activeRenderProcess = null;
       }
-    } catch (e) {
-      yield {'type': 'error', 'message': e.toString()};
-    } finally {
-      _activeRenderProcess = null;
-    }
+    }();
+
+    return controller.stream;
   }
 
   static void cancelRender() {

@@ -1,39 +1,34 @@
-import shutil
-import subprocess
-import sys
 import os
-import signal
+import sys
+import subprocess
 
-# Dynamically resolve flutter binary path
-flutter_cmd = shutil.which("flutter") or "/home/rexilash/flutter/flutter/bin/flutter"
+def main():
+    print("Starting Visualizer Development Environment...")
+    
+    # Ensure output directory exists
+    os.makedirs("output", exist_ok=True)
+    
+    # Locate frontend directory
+    frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
+    if not os.path.exists(frontend_dir):
+        print("Error: 'frontend' directory not found!", file=sys.stderr)
+        sys.exit(1)
+        
+    print("Launching Flutter frontend via 'flutter run'...")
+    
+    # Enable shell execution on Windows so batch scripts like 'flutter' are found
+    use_shell = os.name == 'nt'
+    flutter_cmd = ["flutter", "run"]
+    
+    try:
+        flutter_process = subprocess.Popen(flutter_cmd, cwd=frontend_dir, shell=use_shell)
+        flutter_process.wait()
+    except KeyboardInterrupt:
+        print("\nShutting down development environment...")
+        flutter_process.terminate()
+        flutter_process.wait()
+    except Exception as e:
+        print(f"Error launching Flutter: {e}", file=sys.stderr)
 
-if sys.platform != "win32":
-    backend = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "backend.server:app", "--reload", "--port", "8000"],
-        preexec_fn=os.setsid
-    )
-else:
-    backend = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "backend.server:app", "--reload", "--port", "8000"]
-    )
-
-exit_code = 0
-
-try:
-    result = subprocess.run([flutter_cmd, "run", "-d", "linux"], cwd="frontend")
-    exit_code = result.returncode
-except FileNotFoundError:
-    print(f"\n[Error] Could not locate Flutter executable at: {flutter_cmd}")
-    exit_code = 1
-finally:
-    print("\nShutting down backend server...")
-    if sys.platform != "win32":
-        try:
-            # Force immediate termination of the process group
-            os.killpg(os.getpgid(backend.pid), signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    else:
-        backend.kill()
-
-sys.exit(exit_code)
+if __name__ == "__main__":
+    main()

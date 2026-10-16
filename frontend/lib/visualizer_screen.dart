@@ -33,6 +33,7 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
   double renderProgress = 0.0;
   String renderStatusMessage = "Idle";
   File? previewFile;
+  File? _lastPreviewFile;
   
   Timer? _debounceTimer;
   StreamSubscription? _renderSubscription;
@@ -83,7 +84,10 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 200), () async {
       final tempDir = Directory.systemTemp;
-      final tempPreviewPath = p.join(tempDir.path, 'visualizer_preview.jpg');
+      final tempPreviewPath = p.join(
+        tempDir.path, 
+        'visualizer_preview_${DateTime.now().millisecondsSinceEpoch}.jpg'
+      );
 
       final success = await CliService.generatePreview(
         configJson: _buildConfigJson(),
@@ -91,8 +95,16 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
       );
 
       if (success && mounted) {
+        // Delete previous preview file to prevent temp clutter
+        if (_lastPreviewFile != null && _lastPreviewFile!.existsSync()) {
+          try {
+            _lastPreviewFile!.deleteSync();
+          } catch (_) {}
+        }
+        
+        _lastPreviewFile = File(tempPreviewPath);
         setState(() {
-          previewFile = File(tempPreviewPath);
+          previewFile = _lastPreviewFile;
         });
       }
     });
@@ -178,8 +190,22 @@ class _VisualizerStudioScreenState extends State<VisualizerStudioScreen> {
           renderProgress = total > 0 ? current / total : 0.0;
         } else if (event['type'] == 'status') {
           renderStatusMessage = event['message'] ?? '';
-        } else if (event['type'] == 'complete' || event['type'] == 'error') {
+        } else if (event['type'] == 'complete') {
           isRendering = false;
+          renderStatusMessage = "Complete!";
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Video rendered successfully!')),
+          );
+        } else if (event['type'] == 'error') {
+          isRendering = false;
+          renderStatusMessage = "Error occurred";
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Render Error: ${event['message']}'),
+              backgroundColor: Colors.redAccent,
+              duration: const Duration(seconds: 5),
+            ),
+          );
         }
       });
     });

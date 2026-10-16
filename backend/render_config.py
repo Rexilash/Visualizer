@@ -1,3 +1,5 @@
+import cv2
+
 class RenderConfig:
     def __init__(self):
         self.res_options = {
@@ -13,6 +15,14 @@ class RenderConfig:
         self.artist = "Spectrum Engine"
         self.bg_mode = "color" # "color" or "image"
         self.bg_image_path = ""
+
+        self.font_options = {
+            "Simplex": cv2.FONT_HERSHEY_SIMPLEX,
+            "Plain": cv2.FONT_HERSHEY_PLAIN,
+            "Duplex": cv2.FONT_HERSHEY_DUPLEX,
+            "Complex": cv2.FONT_HERSHEY_COMPLEX,
+        }
+        self.selected_font_key = "Simplex"
         
         # Color state (RGB)
         self.rgb_primary = (255, 0, 150)
@@ -48,4 +58,5 @@ class RenderConfig:
             "maxHeightPct": 0.82,
             "bg_mode": self.bg_mode,
             "bg_image_path": self.bg_image_path,
+            "fontFace": self.font_options.get(self.selected_font_key, cv2.FONT_HERSHEY_SIMPLEX),
     }

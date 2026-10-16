@@ -1,28 +1,33 @@
 import numpy as np
-from scipy.io import wavfile
-
+import subprocess
+import sys
+import os
+from utils import get_ffmpeg_cmd
 
 class AudioAnalyzer:
     """
-    Parses audio files, performs Fast Fourier Transform (FFT) frequency analysis,
-    and calculates smoothed logarithmic frequency band magnitudes for visualizers.
+    Parses audio files using FFmpeg piping, performs Fast Fourier Transform (FFT) 
+    frequency analysis, and calculates smoothed logarithmic frequency band magnitudes.
     """
     def __init__(self, audioPath, targetFPS=60, numBars=64, attackFactor=0.45, decayFactor=0.15):
-        # Read 16-bit PCM WAV audio data
-        self.sampleRate, data = wavfile.read(audioPath)
+        self.sampleRate = 44100
+        ffmpeg_bin = get_ffmpeg_cmd()
 
-        # Convert stereo channels to mono by averaging
-        if len(data.shape) > 1:
-            self.audioData = np.mean(data, axis=1)
-        else:
-            self.audioData = data.copy()
+        # Pipe any audio/video file directly into raw 16-bit PCM mono stream using FFmpeg
+        cmd = [
+            ffmpeg_bin, "-y", "-i", audioPath,
+            "-f", "s16le", "-ac", "1", "-ar", str(self.sampleRate), "pipe:1"
+        ]
 
-        # Normalize sample amplitudes to float32 range [-1.0, 1.0]
-        if np.issubdtype(self.audioData.dtype, np.integer):
-            info = np.iinfo(self.audioData.dtype)
-            self.audioData = self.audioData.astype(np.float32) / max(abs(info.min), abs(info.max))
-        else:
-            self.audioData = self.audioData.astype(np.float32)
+        try:
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            data = np.frombuffer(result.stdout, dtype=np.int16)
+        except subprocess.CalledProcessError as e:
+            err_msg = e.stderr.decode('utf-8', errors='ignore')
+            raise RuntimeError(f"FFmpeg audio decoding failed: {err_msg}")
+
+        # Normalize 16-bit signed integer PCM to float32 range [-1.0, 1.0]
+        self.audioData = data.astype(np.float32) / 32768.0
 
         self.fps = targetFPS
         self.numBars = numBars
@@ -62,8 +67,9 @@ class AudioAnalyzer:
             raw_bars = np.interp(self.barFreqs, self.fftFreqs, fft_mag)
             raw_bars = np.convolve(raw_bars, kernel, mode='same')
 
-            peak_history = np.maximum(peak_history * 0.988, raw_bars)
-            current_bars = np.clip(raw_bars / np.maximum(peak_history, 1e-4), 0.02, 1.0)
+            peak_history = np.maximum(peak_history * 0.992, raw_bars)
+            # Add a 0.2 noise floor threshold so quiet sections don't auto-amplify to full height
+            current_bars = np.clip(raw_bars / np.maximum(peak_history, 0.2), 0.0, 1.0)
 
             smoothed = np.where(
                 current_bars > prev_bars,

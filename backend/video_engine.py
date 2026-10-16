@@ -6,22 +6,7 @@ from audio_analyzer import AudioAnalyzer
 from frame_renderer import FrameRenderer
 import uuid
 import tempfile
-
-
-def get_ffmpeg_cmd():
-    """Dynamically locates bundled ffmpeg.exe or falls back to system PATH."""
-    if getattr(sys, 'frozen', False):
-        bundled_ffmpeg = os.path.join(sys._MEIPASS, "ffmpeg.exe")
-        if os.path.exists(bundled_ffmpeg):
-            return bundled_ffmpeg
-    
-    base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-    local_ffmpeg = os.path.join(base_dir, "ffmpeg.exe")
-    if os.path.exists(local_ffmpeg):
-        return local_ffmpeg
-
-    return "ffmpeg"
-
+from utils import get_ffmpeg_cmd
 
 class VideoEngine:
     """Manages full video frame generation, audio extraction, and FFmpeg muxing."""
@@ -31,13 +16,24 @@ class VideoEngine:
         self.progress_callback = progress_callback
         self.status_callback = status_callback
 
+        # Ensure output path always has a .mp4 extension for FFmpeg container muxing
+        if output_path and not output_path.lower().endswith('.mp4'):
+            output_path += '.mp4'
+        self.output_mp4_path = output_path
+
         session_id = str(uuid.uuid4())[:8]
         temp_dir = tempfile.gettempdir()
         
-        # Save temp files to OS temp directory to avoid permission errors
         self.temp_silent_video = os.path.join(temp_dir, f"tempSilentRender_{session_id}.mp4")
         self.temp_converted_wav = os.path.join(temp_dir, f"tempBackgroundDecode_{session_id}.wav")
-        self.output_mp4_path = output_path
+        
+        # Place downloaded URL audio directly in the target output folder
+        if self.audio_path.startswith(("http://", "https://")) and self.output_mp4_path:
+            out_dir = os.path.dirname(self.output_mp4_path)
+            base_name = os.path.splitext(os.path.basename(self.output_mp4_path))[0]
+            self.target_downloaded_audio = os.path.join(out_dir, f"{base_name}_audio.wav")
+        else:
+            self.target_downloaded_audio = None
 
     def _update_status(self, message):
         if self.status_callback:
@@ -48,10 +44,45 @@ class VideoEngine:
             self.progress_callback(current, total)
 
     def _download_url_audio(self, url: str):
-        """Streams direct network audio URLs to a local 16-bit PCM WAV using FFmpeg."""
-        self._update_status("Fetching audio stream from URL...")
+        """Downloads audio streams from YouTube or media links directly to the target output folder."""
+        self._update_status("Downloading audio stream from URL...")
+        
+        if any(domain in url.lower() for domain in ["youtube.com", "youtu.be", "music.youtube.com", "soundcloud.com"]):
+            try:
+                import yt_dlp
+                if not self.target_downloaded_audio:
+                    out_dir = os.path.dirname(self.output_mp4_path) if self.output_mp4_path else tempfile.gettempdir()
+                    self.target_downloaded_audio = os.path.join(out_dir, "downloaded_audio.wav")
+                
+                base_path = os.path.splitext(self.target_downloaded_audio)[0]
+                ffmpeg_dir = os.path.dirname(get_ffmpeg_cmd())
+                
+                ydl_opts = {
+                    'format': 'bestaudio/best',
+                    'outtmpl': base_path,
+                    'ffmpeg_location': ffmpeg_dir,
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'wav',
+                    }],
+                    'quiet': True,
+                    'noplaylist': True,
+                    'extractor_args': {
+                        'youtube': {
+                            'player_client': ['tv', 'mweb', 'ios', 'android']
+                        }
+                    },
+                }
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([url])
+                return
+            except Exception as e:
+                raise RuntimeError(f"Failed to download media link via yt-dlp: {e}")
+
+        # Fallback for direct static file URLs
         ffmpeg_bin = get_ffmpeg_cmd()
-        cmd = [ffmpeg_bin, "-y", "-i", url, "-acodec", "pcm_s16le", "-ar", "44100", self.temp_converted_wav]
+        target_wav = self.target_downloaded_audio or self.temp_converted_wav
+        cmd = [ffmpeg_bin, "-y", "-i", url, "-acodec", "pcm_s16le", "-ar", "44100", target_wav]
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     def render(self):
@@ -59,15 +90,21 @@ class VideoEngine:
         analysis_path = self.audio_path
         video_writer = None
         ffmpeg_bin = get_ffmpeg_cmd()
+        downloaded_audio_used = False
 
         try:
             # 1. Process Network URLs or Non-WAV Files
             if self.audio_path.startswith(("http://", "https://")):
                 self._download_url_audio(self.audio_path)
-                analysis_path = self.temp_converted_wav
+                analysis_path = self.target_downloaded_audio
+                downloaded_audio_used = True
             elif not self.audio_path.lower().endswith((".wav", ".wave")):
                 self._update_status("Unpacking audio stream...")
-                convert_cmd = [ffmpeg_bin, "-y", "-i", self.audio_path, "-acodec", "pcm_s16le", "-ar", "44100", self.temp_converted_wav]
+                convert_cmd = [
+                    ffmpeg_bin, "-y", "-i", self.audio_path, 
+                    "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+                    "-acodec", "pcm_s16le", "-ar", "44100", self.temp_converted_wav
+                ]
                 subprocess.run(convert_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 analysis_path = self.temp_converted_wav
 
@@ -98,10 +135,20 @@ class VideoEngine:
             self._update_status("Merging audio track...")
             ffmpeg_cmd = [
                 ffmpeg_bin, "-y", "-i", self.temp_silent_video, "-i", analysis_path, 
-                "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", self.output_mp4_path
+                "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", 
+                "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+                "-shortest", self.output_mp4_path
             ]
             subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             self._update_status(f"Completed: {os.path.basename(self.audio_path)}")
+            
+            # 5. Clean up downloaded source audio upon successful completion
+            if downloaded_audio_used and self.target_downloaded_audio and os.path.exists(self.target_downloaded_audio):
+                try:
+                    os.remove(self.target_downloaded_audio)
+                except Exception:
+                    pass
+
             return True
 
         finally:

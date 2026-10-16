@@ -98,10 +98,36 @@ class _ConfigPanelState extends State<ConfigPanel> {
     final maxScroll = _scrollController.position.maxScrollExtent;
     final currentScroll = _scrollController.offset;
 
-    setState(() {
-      _showTopShadow = currentScroll > 5;
-      _showBottomShadow = currentScroll < (maxScroll - 5) && maxScroll > 0;
-    });
+    final showTop = currentScroll > 5;
+    final showBottom = currentScroll < (maxScroll - 5) && maxScroll > 0;
+
+    if (showTop != _showTopShadow || showBottom != _showBottomShadow) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _showTopShadow = showTop;
+            _showBottomShadow = showBottom;
+          });
+        }
+      });
+    }
+  }
+
+  Widget _buildPresetButton(String label, Color p, Color s, Color t, Color bg) {
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // Increased padding
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      onPressed: () {
+        widget.onColorChanged('Primary', p);
+        widget.onColorChanged('Secondary', s);
+        widget.onColorChanged('Tertiary', t);
+        widget.onColorChanged('BG', bg);
+      },
+      child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)), // Larger font
+    );
   }
   
   @override
@@ -212,7 +238,42 @@ class _ConfigPanelState extends State<ConfigPanel> {
 
                           // Color Scheming
                           const Text('Color Scheme', style: TextStyle(fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _buildPresetButton('Synthwave', const Color(0xFFFF0096), const Color(0xFF00FFFF), const Color(0xFF0064FF), const Color(0xFF0F0F14)),
+                              _buildPresetButton('Cyberpunk', const Color(0xFFFFE600), const Color(0xFF00FFCC), const Color(0xFFFF0055), Colors.black),
+                              _buildPresetButton('Sunset', const Color(0xFFFF512F), const Color(0xFFDD2476), const Color(0xFFFF8008), const Color(0xFF140814)),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _buildPresetButton('Vaporwave', const Color(0xFFFF71CE), const Color(0xFF01CDFE), const Color(0xFFB967FF), const Color(0xFF050515)),
+                              _buildPresetButton('Matrix', const Color(0xFF00FF66), const Color(0xFF00FFFF), const Color(0xFF003311), const Color(0xFF020804)),
+                              _buildPresetButton('Abyss', const Color(0xFF00B4DB), const Color(0xFF0083B0), const Color(0xFF004E92), const Color(0xFF0A0F1D)),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _buildPresetButton('Velvet', const Color(0xFF00F2FE), const Color(0xFF4FACFE), const Color(0xFF003366), const Color(0xFF0A0F1D)),
+                              _buildPresetButton('Lo-Fi', const Color(0xFFFF9AA2), const Color(0xFFFFB7B2), const Color(0xFFE2F0CB), const Color(0xFF1A1618)),
+                              _buildPresetButton('Solar', const Color(0xFFFF416C), const Color(0xFFFF4B2B), const Color(0xFFFFA07A), const Color(0xFF100303)),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _buildPresetButton('Noir', Colors.white, const Color(0xFFCCCCCC), const Color(0xFF777777), Colors.black),
+                              _buildPresetButton('Sakura', const Color(0xFFFFB7C5), const Color(0xFFE8A5C8), const Color(0xFFD8B4FE), const Color(0xFF18111A)),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
                           ColorPickerSection(
                             primaryColor: widget.primaryColor,
                             secondaryColor: widget.secondaryColor,
@@ -220,7 +281,6 @@ class _ConfigPanelState extends State<ConfigPanel> {
                             bgColor: widget.bgColor,
                             onColorChanged: widget.onColorChanged,
                           ),
-                          const SizedBox(height: 20),
 
                           // Audio Input Source Selection
                           const Text('Audio Source', style: TextStyle(fontWeight: FontWeight.w600)),

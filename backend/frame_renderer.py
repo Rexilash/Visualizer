@@ -71,13 +71,19 @@ class FrameRenderer:
     def renderFrame(self, audioFrameData, progress=0.0):
         """Assembles background, spectrum bars, progress indicator, and song titles into a single BGR frame."""
         frame = np.zeros((self.height, self.width, 3), dtype=np.uint8)
-        frame[:] = self.settings["bgColor"]
 
-        # Apply solid background color or loaded background image
+        # Calculate low-frequency sub-bass energy from the first 5 bars
+        bass_energy = np.mean(audioFrameData[:5]) if len(audioFrameData) >= 5 else 0.0
+
+        # Apply solid background color or image with bass pulse modulation
         if self.settings.get("bg_mode") == "image" and self.bg_image is not None:
-            frame[:] = self.bg_image.copy()
+            brightness = 1.0 + (bass_energy * 0.15)
+            frame[:] = np.clip(self.bg_image.copy() * brightness, 0, 255).astype(np.uint8)
         else:
-            frame[:] = self.settings["bgColor"]
+            base_bg = np.array(self.settings["bgColor"], dtype=np.float32)
+            pulse_factor = 1.0 + (bass_energy * 0.25)
+            current_bg = np.clip(base_bg * pulse_factor, 0, 255).astype(np.uint8)
+            frame[:] = current_bg  # NumPy automatically broadcasts shape (3,) across all pixels
 
         self._drawBars(frame, audioFrameData)
         self._drawProgressBar(frame, progress)
@@ -129,7 +135,7 @@ class FrameRenderer:
                 self._draw_rounded_rect(frame, (x1, y1), (fill_x2, y2), self.settings["primaryColor"], radius=bar_h // 2)
 
     def _drawText(self, frame):
-        font = cv2.FONT_HERSHEY_SIMPLEX
+        font = self.settings.get("fontFace", cv2.FONT_HERSHEY_SIMPLEX)
         titleScale = 2 * self.scale
         artistScale = 1.5 * self.scale
         titleThick = max(1, int(3 * self.scale))
